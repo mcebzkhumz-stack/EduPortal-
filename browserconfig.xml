@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<browserconfig>
+  <msapplication>
+    <tile>
+      <square150x150logo src="icons/eduportal-icon.svg"/>
+      <TileColor>#1f6e5c</TileColor>
+    </tile>
+  </msapplication>
+</browserconfig>

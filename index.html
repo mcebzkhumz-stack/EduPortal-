@@ -1509,18 +1509,27 @@
             style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; padding:3px 9px; cursor:pointer; font-size:12px;">Dismiss</button>
     </div>
 
-    <div id="landingView" style="display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; padding:40px 20px; gap:28px;">
+    <div id="landingView" style="display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; padding:40px 20px; gap:28px; position:relative;">
+        <div style="position:fixed; top:16px; left:16px; z-index:150;">
+            <button type="button" class="role-menu-btn" id="landingRoleMenuBtn">
+                <span class="hamburger">≡</span>
+                <span id="landingRoleMenuLabel">Sign in as…</span>
+                <span class="chev">▾</span>
+            </button>
+            <div class="role-menu-panel" id="landingRoleMenuPanel"></div>
+        </div>
         <div style="text-align:center;">
             <div style="font-family:var(--display); font-size:30px; font-weight:600;">EduPortal</div>
-            <div style="color:var(--muted); font-size:14px; margin-top:4px;">Find your school to sign in</div>
+            <div style="color:var(--muted); font-size:14px; margin-top:4px;" id="landingSubtitle">Find your school to sign in</div>
         </div>
         <div style="width:100%; max-width:440px;">
             <input type="text" id="landingSearchInput" placeholder="Type your school's name or school email…"
                 autocomplete="off"
                 style="width:100%; padding:12px 14px; font-size:15px; border:1px solid var(--rule); border-radius:8px; background:var(--panel); color:var(--ink); font-family:var(--body);">
-            <div id="landingResults" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
+            <div id="landingResultsLabel" class="muted" style="font-size:12px; margin-top:12px;"></div>
+            <div id="landingResults" style="margin-top:6px; display:flex; flex-direction:column; gap:8px;"></div>
         </div>
-        <button type="button" id="landingOwnerLink" class="btn secondary small" style="opacity:.7;">Owner / Staff sign in</button>
+        <button type="button" id="landingOwnerLink" class="btn secondary small" style="opacity:.7;">Staff Sign In</button>
     </div>
 
     <div id="ownerView" style="display:none;">
@@ -1987,6 +1996,7 @@
                 try { window.localStorage.setItem(key, val); } catch (e) { console.error('Local save failed for', key, e); }
                 showLocalOnlyWarning();
             }
+            scheduleFullGithubSync('updated ' + key);
             return true;
         }
         function lsRemove(key) {
@@ -2007,6 +2017,7 @@
                 try { window.localStorage.removeItem(key); } catch (e) { console.error('Local delete failed for', key, e); }
                 showLocalOnlyWarning();
             }
+            scheduleFullGithubSync('removed ' + key);
         }
         async function loadCloudCache() {
             if (hasCloud) {
@@ -2792,6 +2803,219 @@
             return schools;
         }
         function saveSchools(s) { return OwnerDB.set('schools', s); }
+
+        /* ---- GitHub registry sync ----
+           Optional: mirrors the school directory (name, school email, region,
+           type, status) to a JSON file in a GitHub repository the Owner
+           controls, using the GitHub Contents API directly from the browser.
+           Configured from the Owner Console's "GitHub Registry Sync" panel.
+           SECURITY NOTE: see the warning shown in that panel — this is a
+           static client-side app, so any token entered is stored in this
+           browser and sent straight to api.github.com; it is not hidden from
+           anyone with access to this device. */
+        function getGithubConfig() { return OwnerDB.get('githubSyncConfig', null) || {}; }
+        function saveGithubConfig(cfg) { return OwnerDB.set('githubSyncConfig', cfg); }
+        function githubConfigured() { const c = getGithubConfig(); return !!(c.token && c.owner && c.repo && c.path); }
+        function b64EncodeUtf8(str) { return btoa(unescape(encodeURIComponent(str))); }
+        function b64DecodeUtf8(str) { return decodeURIComponent(escape(atob(str.replace(/\n/g, '')))); }
+        async function githubGetSchoolsFile() {
+            const cfg = getGithubConfig();
+            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${cfg.path}?ref=${encodeURIComponent(cfg.branch || 'main')}`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' } });
+            if (res.status === 404) return { sha: null, schools: [] };
+            if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
+            const data = await res.json();
+            let list = [];
+            try { list = JSON.parse(b64DecodeUtf8(data.content || '')); if (!Array.isArray(list)) list = []; } catch (e) { list = []; }
+            return { sha: data.sha, schools: list };
+        }
+        async function githubPutSchoolsFile(payload, sha, message) {
+            const cfg = getGithubConfig();
+            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${cfg.path}`;
+            const body = { message: message || 'EduPortal: sync school registry', content: b64EncodeUtf8(JSON.stringify(payload, null, 2)), branch: cfg.branch || 'main' };
+            if (sha) body.sha = sha;
+            const res = await fetch(url, { method: 'PUT', headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub write failed (${res.status}): ${t.slice(0, 200)}`); }
+            return res.json();
+        }
+        function schoolsRegistryPayload() {
+            return getSchools().map(s => ({ id: s.id, name: s.name, schoolEmail: s.schoolEmail || '', region: s.region || '', type: s.type || '', status: s.status || 'active', registeredAt: s.registeredAt || '' }));
+        }
+        /* Best-effort background push — called after ANY change the Owner
+           makes that touches the school registry (register, edit, suspend/
+           activate, delete). Auto-syncs on every such change so the GitHub
+           repo always reflects what the Owner just did, and records GitHub's
+           actual response (commit sha + link) so the Owner can see the repo
+           "talk back" rather than just trusting the push happened silently. */
+        let ownerSyncBusy = false;
+        async function syncSchoolsToGithub(reason) {
+            if (!githubConfigured()) return;
+            ownerSyncBusy = true;
+            if (appMode === 'owner') renderOwner();
+            try {
+                const { sha } = await githubGetSchoolsFile();
+                const commitMsg = reason ? `EduPortal: ${reason}` : 'EduPortal: sync school registry';
+                const result = await githubPutSchoolsFile(schoolsRegistryPayload(), sha, commitMsg);
+                const commitSha = result && result.commit && result.commit.sha;
+                const commitUrl = result && result.commit && result.commit.html_url;
+                saveGithubConfig({
+                    ...getGithubConfig(),
+                    lastSyncAt: new Date().toISOString(),
+                    lastSyncError: '',
+                    lastSyncReason: reason || '',
+                    lastSyncCommitSha: commitSha || '',
+                    lastSyncCommitUrl: commitUrl || '',
+                });
+            } catch (err) {
+                saveGithubConfig({ ...getGithubConfig(), lastSyncError: String((err && err.message) || err) });
+            }
+            ownerSyncBusy = false;
+            if (appMode === 'owner') renderOwner();
+        }
+
+        /* ---- GitHub FULL DATA sync ----
+           Beyond the small school-registry file above, this mirrors the
+           ENTIRE app database — every school's users, gradebooks, materials,
+           announcements, discussion rooms, the Owner's own records, all of
+           it (i.e. all of `cloudCache`, the same object that backs every
+           read/write in the app) — to one JSON file in the repo. It is
+           wired into lsSet()/lsRemove(), the two functions every single
+           storage write in the app already funnels through (DB.set,
+           OwnerDB.set, writeSchoolData, etc.), so ANY change anywhere in
+           EduPortal — by the Owner or by any teacher/student/principal in
+           any school — schedules a push. Pushes are debounced (and capped
+           at a max wait) so a burst of changes becomes one commit instead
+           of one per keystroke.
+           Off by default — the Owner turns it on and points it at a file
+           path from the "Full Data Sync" panel, reusing the same
+           token/owner/repo/branch as the registry sync above. */
+        const FULL_SYNC_DEBOUNCE_MS = 4000;
+        const FULL_SYNC_MAX_WAIT_MS = 20000;
+        let fullSyncBusy = false;
+        let fullSyncTimer = null;
+        let fullSyncFirstPendingAt = 0;
+        let fullSyncPendingReason = '';
+        function githubFullSyncConfigured() {
+            const c = getGithubConfig();
+            return !!(c.token && c.owner && c.repo && c.fullSyncEnabled && (c.fullPath || 'eduportal-full-backup.json'));
+        }
+        /* The simple Contents API used by the schools-registry sync above is
+           capped at 1MB per file (both read and write), which the full
+           database backup can easily outgrow. This uses the Git Data API
+           instead — create a blob, graft it into a new tree, commit that
+           tree, then move the branch ref to the new commit — which supports
+           blobs up to 100MB, well past anything this app will produce. */
+        async function githubApiRequest(method, path, body) {
+            const cfg = getGithubConfig();
+            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/${path}`;
+            const res = await fetch(url, {
+                method,
+                headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub ${method} ${path} failed (${res.status}): ${t.slice(0, 200)}`); }
+            return res.json();
+        }
+        async function githubPutFullBackupFile(payload, message) {
+            const cfg = getGithubConfig();
+            const path = cfg.fullPath || 'eduportal-full-backup.json';
+            const branch = cfg.branch || 'main';
+            let ref;
+            try {
+                ref = await githubApiRequest('GET', `git/ref/${encodeURIComponent('heads/' + branch)}`);
+            } catch (err) {
+                throw new Error(`Couldn't find branch "${branch}" (${(err && err.message) || err}). Push the school registry at least once first — that creates the branch.`);
+            }
+            const parentCommitSha = ref.object.sha;
+            const parentCommit = await githubApiRequest('GET', `git/commits/${parentCommitSha}`);
+            const baseTreeSha = parentCommit.tree.sha;
+            const content = JSON.stringify(payload, null, 2);
+            const blob = await githubApiRequest('POST', 'git/blobs', { content: b64EncodeUtf8(content), encoding: 'base64' });
+            const tree = await githubApiRequest('POST', 'git/trees', { base_tree: baseTreeSha, tree: [{ path, mode: '100644', type: 'blob', sha: blob.sha }] });
+            const commit = await githubApiRequest('POST', 'git/commits', { message: message || 'EduPortal: full data sync', tree: tree.sha, parents: [parentCommitSha] });
+            await githubApiRequest('PATCH', `git/refs/${encodeURIComponent('heads/' + branch)}`, { sha: commit.sha });
+            return { commit: { sha: commit.sha, html_url: `https://github.com/${cfg.owner}/${cfg.repo}/commit/${commit.sha}` } };
+        }
+        function fullDataPayload() {
+            return { app: 'EduPortal', exportedAt: new Date().toISOString(), schoolCount: getSchools().length, data: cloudCache };
+        }
+        /* Called from lsSet()/lsRemove() on every single storage write in the
+           app. Debounces with a max-wait cap so continuous activity doesn't
+           delay the push forever. */
+        function scheduleFullGithubSync(reason) {
+            if (!githubFullSyncConfigured()) return;
+            fullSyncPendingReason = reason || fullSyncPendingReason || 'data change';
+            const now = Date.now();
+            if (!fullSyncFirstPendingAt) fullSyncFirstPendingAt = now;
+            if (fullSyncTimer) clearTimeout(fullSyncTimer);
+            const overdue = (now - fullSyncFirstPendingAt) >= FULL_SYNC_MAX_WAIT_MS;
+            fullSyncTimer = setTimeout(() => {
+                fullSyncTimer = null;
+                fullSyncFirstPendingAt = 0;
+                const r = fullSyncPendingReason;
+                fullSyncPendingReason = '';
+                runFullGithubSync(r);
+            }, overdue ? 0 : FULL_SYNC_DEBOUNCE_MS);
+        }
+        async function runFullGithubSync(reason) {
+            if (!githubFullSyncConfigured()) return;
+            fullSyncBusy = true;
+            if (appMode === 'owner') renderOwner();
+            try {
+                const commitMsg = `EduPortal: full sync — ${reason || 'data change'}`;
+                const result = await githubPutFullBackupFile(fullDataPayload(), commitMsg);
+                const commitSha = result && result.commit && result.commit.sha;
+                const commitUrl = result && result.commit && result.commit.html_url;
+                saveGithubConfig({
+                    ...getGithubConfig(),
+                    lastFullSyncAt: new Date().toISOString(),
+                    lastFullSyncError: '',
+                    lastFullSyncReason: reason || '',
+                    lastFullSyncCommitSha: commitSha || '',
+                    lastFullSyncCommitUrl: commitUrl || '',
+                });
+            } catch (err) {
+                saveGithubConfig({ ...getGithubConfig(), lastFullSyncError: String((err && err.message) || err) });
+            }
+            fullSyncBusy = false;
+            if (appMode === 'owner') renderOwner();
+        }
+
+        /* Pulls the GitHub file and "recognizes" any school name/email in it
+           that isn't already in the local registry, adding it as a new
+           school record (matched by school email, falling back to name). */
+        async function pullSchoolsFromGithub() {
+            if (!githubConfigured()) { alert('Fill in and save the GitHub sync settings first.'); return; }
+            try {
+                const { schools: remote } = await githubGetSchoolsFile();
+                const local = getSchools();
+                const existingEmails = new Set(local.map(s => (s.schoolEmail || '').toLowerCase()).filter(Boolean));
+                const existingNames = new Set(local.map(s => (s.name || '').toLowerCase()));
+                let added = 0;
+                remote.forEach(r => {
+                    const email = (r.schoolEmail || '').toLowerCase();
+                    const name = (r.name || '').toLowerCase();
+                    if (!name) return;
+                    if ((email && existingEmails.has(email)) || existingNames.has(name)) return;
+                    local.push({
+                        id: uniqueSchoolId(r.name || 'school'), name: r.name || 'Untitled School', region: r.region || '', address: '',
+                        contactName: '', contactPhone: '', contactEmail: '', type: r.type || 'High School', status: r.status || 'active',
+                        registeredAt: r.registeredAt || new Date().toISOString(), schoolEmail: r.schoolEmail || generateSchoolEmail(r.name || 'school'),
+                    });
+                    if (email) existingEmails.add(email);
+                    existingNames.add(name);
+                    added++;
+                });
+                if (added) { saveSchools(local); logOwnerActivity('Recognized schools from GitHub', `${added} added`); }
+                saveGithubConfig({ ...getGithubConfig(), lastPullAt: new Date().toISOString(), lastSyncError: '' });
+                alert(added ? `Recognized and added ${added} school(s) from GitHub.` : 'No new schools found in the GitHub file.');
+                renderOwner();
+            } catch (err) {
+                saveGithubConfig({ ...getGithubConfig(), lastSyncError: String((err && err.message) || err) });
+                alert('GitHub pull failed: ' + ((err && err.message) || err));
+                renderOwner();
+            }
+        }
         function schoolUserCount(id) { const u = readSchoolData(id, 'users', []); return Array.isArray(u) ? u.length : 0; }
 
         /* ---- Owner Console: activity log ----
@@ -3027,7 +3251,7 @@
             /* Customize School Interface — per-school role/tab visibility toggles. */
             customizeSchoolId: null, customizeExpandedRole: null,
             /* Customize School Interface — adding brand-new roles/screens. */
-            customizeNewRoleLabel: '', customizeAddingTabFor: null, customizeNewTabLabel: '', customizeNewTabBody: '',
+            customizeNewRoleLabel: '', customizeAddingTabFor: null, customizeNewTabLabel: '', customizeNewTabBody: '', customizeNewSubjectLabel: '',
             /* AI Assistant + local database workspace */
             aiPrompt: '', aiAssistantReply: 'Ask me about school statistics, saved records, or next actions.',
             aiDbTitle: '', aiDbCategory: 'General', aiDbDetails: '', aiDbSearch: '',
@@ -3101,6 +3325,7 @@
             ownerAccess = false;
             NavDB.set('ownerAccess', false);
             authedUser = null;
+            landingIntendedRole = null;
             showView();
         }
         function showView() {
@@ -3140,31 +3365,42 @@
            auto-generated school email (see generateSchoolEmail above) and jump
            straight into that school's login gate. */
         let landingSearch = '';
-        function renderLanding() {
-            const input = document.getElementById('landingSearchInput');
-            if (input && document.activeElement !== input) input.value = landingSearch;
-            const q = landingSearch.trim().toLowerCase();
-            const results = document.getElementById('landingResults');
-            if (!q) {
-                results.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">Start typing to find your school…</div>`;
-                return;
-            }
-            const schools = getSchools().filter(s => s.status === 'active');
-            const matches = schools.filter(s => s.name.toLowerCase().includes(q) || (s.schoolEmail || '').toLowerCase().includes(q));
-            if (!matches.length) {
-                results.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">No school matches "${escapeHtml(landingSearch)}".</div>`;
-                return;
-            }
-            results.innerHTML = matches.map(s => `
+        function schoolResultCard(s) {
+            return `
                 <button type="button" class="landing-result-btn" data-id="${s.id}"
                     style="display:flex; align-items:center; gap:10px; text-align:left; width:100%; padding:10px 12px; border:1px solid var(--rule); border-radius:8px; background:var(--panel); cursor:pointer; font-family:var(--body);">
                     ${s.badge ? `<img src="${s.badge}" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:5px;border:1px solid var(--rule);background:#fff;flex-shrink:0;">` : `<span style="width:28px;height:28px;border-radius:5px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">${escapeHtml((s.name || '?').slice(0, 1).toUpperCase())}</span>`}
                     <span style="flex:1; min-width:0;">
                         <span style="display:block; font-weight:600; font-size:14px; color:var(--ink);">${escapeHtml(s.name)}</span>
-                        <span style="display:block; font-size:12px; color:var(--muted);">${escapeHtml(s.schoolEmail || '')}${s.region ? ' · ' + escapeHtml(s.region) : ''}</span>
+                        <span style="display:block; font-size:12px; color:var(--muted);">${escapeHtml(s.schoolEmail || '')}${s.region ? ' · ' + escapeHtml(s.region) : ''}${s.type ? ' · ' + escapeHtml(s.type) : ''}</span>
                     </span>
-                </button>
-            `).join('');
+                </button>`;
+        }
+        function renderLanding() {
+            const input = document.getElementById('landingSearchInput');
+            if (input && document.activeElement !== input) input.value = landingSearch;
+            const q = landingSearch.trim().toLowerCase();
+            const results = document.getElementById('landingResults');
+            const label = document.getElementById('landingResultsLabel');
+            const schools = getSchools().filter(s => s.status === 'active').sort((a, b) => a.name.localeCompare(b.name));
+            if (!q) {
+                // Registration information first: every registered, active
+                // school is listed up front (name, school email, region) so a
+                // visitor can browse the directory before typing anything.
+                label.textContent = schools.length ? `${schools.length} registered school${schools.length === 1 ? '' : 's'}` : '';
+                results.innerHTML = schools.length
+                    ? schools.map(schoolResultCard).join('')
+                    : `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">No schools registered yet.</div>`;
+                results.querySelectorAll('.landing-result-btn').forEach(btn => { btn.onclick = () => enterSchool(btn.dataset.id); });
+                return;
+            }
+            const matches = schools.filter(s => s.name.toLowerCase().includes(q) || (s.schoolEmail || '').toLowerCase().includes(q));
+            label.textContent = matches.length ? `${matches.length} match${matches.length === 1 ? '' : 'es'}` : '';
+            if (!matches.length) {
+                results.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">No school matches "${escapeHtml(landingSearch)}".</div>`;
+                return;
+            }
+            results.innerHTML = matches.map(schoolResultCard).join('');
             results.querySelectorAll('.landing-result-btn').forEach(btn => {
                 btn.onclick = () => enterSchool(btn.dataset.id);
             });
@@ -3175,14 +3411,107 @@
         });
         document.getElementById('landingOwnerLink').addEventListener('click', openOwnerAuthModal);
 
+        /* ---------------- Landing page: "Sign in as…" quick-jump menu ----------------
+           A ≡ menu fixed at the top-left of the landing page. It doesn't show
+           or store any credentials — it just lets a visitor flag which role
+           they're signing in as (Student, Teacher, Principal, etc.) before
+           picking their school, so the subtitle and login screen can greet
+           them correctly. The actual sign-in is still the normal per-school
+           username + password form; which role that account has is decided
+           by the account itself once they sign in, not by this menu. */
+        let landingIntendedRole = null;
+        function renderLandingRoleMenu() {
+            const panel = document.getElementById('landingRoleMenuPanel');
+            const roles = [['', 'Any role'], ...ROLE_TABS];
+            panel.innerHTML = roles.map(([key, label]) => `
+                <button type="button" data-role="${key}" class="${landingIntendedRole === key ? 'active' : ''}">
+                    <span>${escapeHtml(label)}</span><span class="dot"></span>
+                </button>`).join('');
+            panel.querySelectorAll('button[data-role]').forEach(btn => {
+                btn.onclick = () => {
+                    landingIntendedRole = btn.dataset.role || null;
+                    closeLandingRoleMenu();
+                    const menuLabel = document.getElementById('landingRoleMenuLabel');
+                    const subtitle = document.getElementById('landingSubtitle');
+                    const roleName = (ROLE_TABS.find(r => r[0] === landingIntendedRole) || [null, null])[1];
+                    menuLabel.textContent = roleName ? `Signing in as ${roleName}` : 'Sign in as…';
+                    subtitle.textContent = roleName ? `Find your school to sign in as ${roleName.toLowerCase() === 'administration' ? 'Admin' : roleName}` : 'Find your school to sign in';
+                };
+            });
+        }
+        function closeLandingRoleMenu() {
+            document.getElementById('landingRoleMenuBtn').classList.remove('open');
+            document.getElementById('landingRoleMenuPanel').classList.remove('open');
+        }
+        document.getElementById('landingRoleMenuBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const btn = document.getElementById('landingRoleMenuBtn');
+            const panel = document.getElementById('landingRoleMenuPanel');
+            const opening = !panel.classList.contains('open');
+            if (opening) renderLandingRoleMenu();
+            btn.classList.toggle('open', opening);
+            panel.classList.toggle('open', opening);
+        });
+        document.addEventListener('click', (e) => {
+            const wrap = document.getElementById('landingRoleMenuBtn');
+            const panel = document.getElementById('landingRoleMenuPanel');
+            if (!panel || !panel.classList.contains('open')) return;
+            if (wrap.contains(e.target) || panel.contains(e.target)) return;
+            closeLandingRoleMenu();
+        });
+
+        /* ---------------- Owner Console access — email allow-list ----------------
+           The landing button now reads "Staff Sign In" for every visitor —
+           it never advertises that an Owner Console exists. Clicking it asks
+           for an email address first. Only the two addresses below unlock
+           the Owner password screen (below); anyone else just gets a plain
+           "not recognized" message and never sees a password field, a
+           mention of "Owner", or any other trace that this path leads
+           anywhere different from ordinary staff sign-in.
+           NOTE: this is a client-side, static-HTML app with no real backend
+           auth — this check happens in the browser, so it deters casual
+           access but is not a substitute for real server-side auth (anyone
+           reading the page source could find these addresses or code path). */
+        const OWNER_ALLOWED_EMAILS = ['mcebzkhumz@gmail.com', 'khumalomzwa06@gmail.com'];
+        function openOwnerAuthModal() {
+            const overlay = document.getElementById('ownerPwModalOverlay');
+            overlay.style.display = 'flex';
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+      <div class="login-card" style="max-width:340px;">
+        <h3 style="margin:0 0 4px; font-size:16px;">Staff Sign In</h3>
+        <p class="muted" style="font-size:13px; margin:0 0 6px;">Enter your email address to continue.</p>
+        <form id="ownerEmailGateForm">
+          <label for="ownerGateEmail">Email</label>
+          <input type="email" id="ownerGateEmail" autocomplete="email" required>
+          <div id="ownerGateError" class="login-error" style="display:none;"></div>
+          <button type="submit" class="btn" style="width:100%; margin-top:14px;">Continue</button>
+          <button type="button" class="btn secondary" id="ownerGateCancel" style="width:100%; margin-top:8px;">Cancel</button>
+        </form>
+      </div>`;
+            document.getElementById('ownerGateCancel').addEventListener('click', closeOwnerAuthModal);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOwnerAuthModal(); });
+            document.getElementById('ownerEmailGateForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('ownerGateEmail').value.trim().toLowerCase();
+                if (!OWNER_ALLOWED_EMAILS.includes(email)) {
+                    const errEl = document.getElementById('ownerGateError');
+                    errEl.textContent = 'No staff account found for this email.';
+                    errEl.style.display = '';
+                    return;
+                }
+                openOwnerPasswordModal();
+            });
+        }
         /* ---------------- Owner Console password gate ----------------
+           Reached only after the email allow-list check above passes.
            The Owner Console has no per-account login (it's not tied to any
            school's user list), so it needs its own single password, set by
            whoever first claims it and required from then on. Stored under
            OwnerDB (shared cloud storage) as just a hash — same sha256Hex
            approach used for regular user accounts — so it works the same way
            from any of the Owner's devices, not just the one that set it. */
-        function openOwnerAuthModal() {
+        function openOwnerPasswordModal() {
             const overlay = document.getElementById('ownerPwModalOverlay');
             const hasPw = !!OwnerDB.get('ownerPasswordHash', null);
             overlay.style.display = 'flex';
@@ -3328,6 +3657,7 @@
             <h1 style="font-size:17px; margin:0;">${schoolName}</h1>
           </div>
           <p class="muted" style="text-align:center; margin:6px 0 0;">Sign in to continue</p>
+          ${landingIntendedRole ? `<p class="muted" style="text-align:center; margin:2px 0 0; font-size:12px;">Signing in as ${escapeHtml((ROLE_TABS.find(r => r[0] === landingIntendedRole) || [null, landingIntendedRole])[1])}</p>` : ''}
           <form id="loginForm">
             <label for="loginUsername">Username</label>
             <input type="text" id="loginUsername" autocomplete="username" placeholder="e.g. STU0001" value="${loginState.username || ''}" required>
@@ -3842,6 +4172,27 @@
            roles plus whatever custom roles that school's Owner has added. */
         function allRoleTabsForSchool(meta) { return [...ROLE_TABS, ...schoolCustomRoles(meta).map(r => [r.key, r.label])]; }
         function isCustomRoleKey(meta, key) { return schoolCustomRoles(meta).some(r => r.key === key); }
+
+        /* ---- Per-school default subjects ----
+           A generic starter list of school subjects, editable per school from
+           the Owner Console ("Customize School Interface" → Default Subjects).
+           Anywhere a Subject field appears across the app, this list is
+           offered as suggestions (via a <datalist>) so staff can pick a
+           common subject instead of retyping it — while still being free to
+           type anything else. A school with no custom list falls back to
+           DEFAULT_SUBJECTS below. */
+        const DEFAULT_SUBJECTS = ['Mathematics', 'English', 'Science', 'History', 'Geography', 'Biology', 'Chemistry', 'Physics', 'Computer Science', 'Business Studies', 'Economics', 'Accounting', 'Art', 'Music', 'Physical Education', 'Social Studies'];
+        function getSchoolSubjects(meta) { return (meta && Array.isArray(meta.subjects) && meta.subjects.length) ? meta.subjects : DEFAULT_SUBJECTS; }
+        /* Just this school's own custom overrides (empty until the Owner adds
+           one), used by the Owner Console to know whether to show the
+           "using the generic default list" hint. */
+        function schoolCustomSubjects(meta) { return (meta && Array.isArray(meta.subjects)) ? meta.subjects : []; }
+        /* Renders a hidden <datalist> of this school's subjects with the given
+           id; pair it with list="<id>" on a text input to get suggestions. */
+        function subjectsDatalist(id) {
+            const meta = currentSchoolMeta();
+            return `<datalist id="${id}">${getSchoolSubjects(meta).map(s => `<option value="${escapeHtml(s)}">`).join('')}</datalist>`;
+        }
 
         /* ---- Per-school branding: accent color ----
            Mixes the school's chosen accent with white to derive the existing
@@ -4693,24 +5044,40 @@
         }
 
         /* ---------------- PRINCIPAL: Overview ---------------- */
-        function render_principal_overview(main, user) {
-            const quizzes = getQuizzes();
-            const subs = getSubmissions();
-            const students = getUsers().filter(u => u.role === 'student');
-            const classes = [...new Set(quizzes.map(q => q.class))];
-            const school = getSchools().find(s => s.id === currentSchoolId) || {};
+        /* ---------------- Editable school branding card ----------------
+           A registration-info card (badge + name/type/region/email + full
+           contact details) — the same card already shown on the Principal/
+           Dean Overview, now reusable everywhere and, for IT Management and
+           the Principal/Dean role only, editable in place: change the
+           school badge and add/remove photos of the school. Every other
+           role sees the identical card read-only. */
+        function getSchoolPictures(school) { return (school && Array.isArray(school.pictures)) ? school.pictures : []; }
+        function updateCurrentSchool(fields) {
+            const arr = getSchools();
+            const idx = arr.findIndex(s => s.id === currentSchoolId);
+            if (idx === -1) return false;
+            arr[idx] = { ...arr[idx], ...fields };
+            saveSchools(arr);
+            return true;
+        }
+        function schoolBrandingCardHtml(school, canEdit) {
             const locationText = [school.address, school.region].filter(Boolean).join(', ');
             const mapQuery = [school.name, school.address, school.region].filter(Boolean).join(', ');
             const mapLink = mapQuery ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}" target="_blank" rel="noopener noreferrer">View on map ↗</a>` : '';
-
-            const schoolDetailsHtml = `
+            const pictures = getSchoolPictures(school);
+            return `
     <div class="panel">
       <div class="school-details-head">
-        ${school.badge ? `<img src="${school.badge}" alt="${school.name || 'School'} badge" class="school-details-badge">` : ''}
-        <div>
-          <h3 style="margin:0; font-size:17px;">${school.name || 'This school'}</h3>
-          <p class="muted" style="margin:2px 0 0; font-size:13px;">${[school.type, school.region].filter(Boolean).join(' · ') || '—'}</p>
+        ${school.badge ? `<img src="${school.badge}" alt="${escapeHtml(school.name || 'School')} badge" class="school-details-badge">` : `<span class="school-details-badge" style="display:flex; align-items:center; justify-content:center; background:var(--accent-soft); color:var(--accent); font-weight:600; font-size:20px;">${escapeHtml((school.name || '?').slice(0, 1).toUpperCase())}</span>`}
+        <div style="flex:1; min-width:200px;">
+          <h3 style="margin:0; font-size:17px;">${escapeHtml(school.name || 'This school')}</h3>
+          <p class="muted" style="margin:2px 0 0; font-size:13px;">${escapeHtml([school.type, school.region].filter(Boolean).join(' · ') || '—')}</p>
+          <p class="muted" style="margin:2px 0 0; font-size:12.5px;">${escapeHtml(school.schoolEmail || '')}</p>
         </div>
+        ${canEdit ? `<div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+          <label class="btn secondary small" style="cursor:pointer; text-align:center; margin:0;">Change badge<input type="file" id="schoolBadgeFile" accept="image/*" style="display:none;"></label>
+          ${school.badge ? `<button type="button" class="btn danger small" id="removeSchoolBadgeBtn">Remove badge</button>` : ''}
+        </div>` : ''}
       </div>
       <div class="grid2" style="margin-top:16px;">
         <div>
@@ -4719,18 +5086,90 @@
         </div>
         <div>
           <label>Registered</label>
-          <p style="margin:2px 0 0;">${school.registeredAt ? new Date(school.registeredAt).toLocaleDateString() : '—'} · ${ownerStatusTag ? ownerStatusTag(school.status) : (school.status || '—')}</p>
+          <p style="margin:2px 0 0;">${school.registeredAt ? new Date(school.registeredAt).toLocaleDateString() : '—'} · ${typeof ownerStatusTag === 'function' ? ownerStatusTag(school.status) : (school.status || '—')}</p>
         </div>
         <div>
           <label>Contact person</label>
-          <p style="margin:2px 0 0;">${school.contactName || '—'}</p>
+          <p style="margin:2px 0 0;">${escapeHtml(school.contactName || '—')}</p>
         </div>
         <div>
           <label>Contact details</label>
-          <p style="margin:2px 0 0;">${[school.contactPhone, school.contactEmail].filter(Boolean).join(' · ') || '—'}</p>
+          <p style="margin:2px 0 0;">${escapeHtml([school.contactPhone, school.contactEmail].filter(Boolean).join(' · ') || '—')}</p>
+        </div>
+      </div>
+      <div style="margin-top:18px; border-top:1px solid var(--rule); padding-top:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+          <h4 style="margin:0; font-size:14px;">School Pictures</h4>
+          ${canEdit ? `<label class="btn small" style="cursor:pointer; margin:0;">+ Add pictures<input type="file" id="schoolPictureFile" accept="image/*" multiple style="display:none;"></label>` : ''}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;">
+          ${pictures.length ? pictures.map(p => `
+            <div style="position:relative; width:110px; height:82px;">
+              <img src="${p.data}" alt="School photo" style="width:100%; height:100%; object-fit:cover; border-radius:8px; border:1px solid var(--rule);">
+              ${canEdit ? `<button type="button" class="btn danger small" data-delete-picture="${p.id}" title="Remove" style="position:absolute; top:-6px; right:-6px; padding:0 6px; font-size:11px; border-radius:10px; line-height:18px;">×</button>` : ''}
+            </div>`).join('') : `<p class="muted" style="font-size:13px;">No pictures added yet.</p>`}
         </div>
       </div>
     </div>`;
+        }
+        /* Wires up the badge/picture controls rendered by schoolBrandingCardHtml
+           above. `rerender` is called after any change so the card (and the
+           rest of the page it's embedded in) redraws with the new data. */
+        function wireSchoolBrandingCard(main, canEdit, rerender) {
+            if (!canEdit) return;
+            const badgeInput = main.querySelector('#schoolBadgeFile');
+            if (badgeInput) badgeInput.onchange = () => {
+                const file = badgeInput.files[0];
+                if (!file) return;
+                resizeImageToDataURL(file, 240, (dataUrl) => {
+                    if (!dataUrl) { alert("Couldn't read that image — try a different file."); return; }
+                    updateCurrentSchool({ badge: dataUrl });
+                    rerender();
+                });
+            };
+            const removeBadgeBtn = main.querySelector('#removeSchoolBadgeBtn');
+            if (removeBadgeBtn) removeBadgeBtn.onclick = () => {
+                if (!confirm('Remove the school badge?')) return;
+                updateCurrentSchool({ badge: '' });
+                rerender();
+            };
+            const pictureInput = main.querySelector('#schoolPictureFile');
+            if (pictureInput) pictureInput.onchange = () => {
+                const files = Array.from(pictureInput.files || []);
+                if (!files.length) return;
+                const school = getSchools().find(s => s.id === currentSchoolId) || {};
+                const existing = getSchoolPictures(school);
+                let remaining = files.length;
+                const newOnes = [];
+                files.forEach(file => {
+                    resizeImageToDataURL(file, 900, (dataUrl) => {
+                        remaining--;
+                        if (dataUrl) newOnes.push({ id: uid('pic'), data: dataUrl, uploadedAt: new Date().toISOString() });
+                        if (remaining === 0) {
+                            updateCurrentSchool({ pictures: [...existing, ...newOnes] });
+                            rerender();
+                        }
+                    });
+                });
+            };
+            main.querySelectorAll('[data-delete-picture]').forEach(btn => {
+                btn.onclick = () => {
+                    const school = getSchools().find(s => s.id === currentSchoolId) || {};
+                    const pictures = getSchoolPictures(school).filter(p => p.id !== btn.dataset.deletePicture);
+                    updateCurrentSchool({ pictures });
+                    rerender();
+                };
+            });
+        }
+
+        function render_principal_overview(main, user) {
+            const quizzes = getQuizzes();
+            const subs = getSubmissions();
+            const students = getUsers().filter(u => u.role === 'student');
+            const classes = [...new Set(quizzes.map(q => q.class))];
+            const school = getSchools().find(s => s.id === currentSchoolId) || {};
+            const canEditBranding = user.role === 'principal';
+            const schoolDetailsHtml = schoolBrandingCardHtml(school, canEditBranding);
 
             const bodyHtml = `
     <div class="stat-row">
@@ -4761,6 +5200,7 @@
             main.innerHTML = `<div class="eyebrow">School-wide</div><h2>Overview</h2>
     ${schoolDetailsHtml}
     ${bodyHtml}`;
+            wireSchoolBrandingCard(main, canEditBranding, () => render_principal_overview(main, user));
             renderWorldNewsWidget(main.querySelector('#worldNewsBody'));
         }
         function render_principal_quizzes(main, user) {
@@ -5279,7 +5719,7 @@
         <div><label>Guardian phone</label><input type="text" id="regGuardianPhone" placeholder="e.g. 7612 3456"></div>
         <div><label>Guardian email (optional)</label><input type="text" id="regGuardianEmail" placeholder="e.g. thandi@example.com"></div>`;
                 } else if (role === 'teacher') {
-                    extraWrap.innerHTML = `<div><label>Subject</label><input type="text" id="regClass" placeholder="e.g. Mathematics"></div>`;
+                    extraWrap.innerHTML = `<div><label>Subject</label><input type="text" id="regClass" placeholder="e.g. Mathematics" list="regSubjectList">${subjectsDatalist('regSubjectList')}</div>`;
                 } else {
                     extraWrap.innerHTML = '';
                 }
@@ -5371,10 +5811,11 @@
             const users = getUsers();
             const counts = {};
             users.forEach(u => { counts[u.role] = (counts[u.role] || 0) + 1; });
-            const schoolMeta = getSchools().find(s => s.id === currentSchoolId);
+            const schoolMeta = getSchools().find(s => s.id === currentSchoolId) || {};
             main.innerHTML = `
     <div class="eyebrow">IT Management</div>
-    <h2>${schoolMeta ? schoolMeta.name : 'This school'} — Technical Overview</h2>
+    <h2>${schoolMeta.name || 'This school'} — Technical Overview</h2>
+    ${schoolBrandingCardHtml(schoolMeta, true)}
     <div class="panel">
       <p class="muted" style="margin-top:0;">IT Management has full technical visibility across this school. Open the tab menu above to jump straight into any Student, Teacher, ${roleLabel('principal')}, ${roleLabel('deputy')}, ${roleLabel('admin')}, or Librarian screen — every merged-in tab opens the real interface, not a read-only copy, so you can troubleshoot accounts, fix data, and support staff directly.</p>
       <div class="stat-row" style="margin-top:6px;">
@@ -5386,6 +5827,7 @@
       <p class="muted" style="margin:0 0 12px;">Use Contact Owner Console in the tab menu to send an incident report or support request straight to the EduPortal System Owner, and see their replies.</p>
       <button class="btn secondary small" id="itGoContactOwner">Open Contact Owner Console</button>
     </div>`;
+            wireSchoolBrandingCard(main, true, () => render_it_overview(main, user));
             const goBtn = document.getElementById('itGoContactOwner');
             if (goBtn) goBtn.onclick = () => { state.tab = 'contactOwner'; render(); };
         }
@@ -5463,7 +5905,7 @@
                     </div>`;
                 if (u.role === 'teacher') return `
                     <div class="grid2">
-                      <div><label>${isTertiary() ? 'Module(s)' : 'Subject'}</label><input type="text" id="editSubject" value="${u.subject || ''}"></div>
+                      <div><label>${isTertiary() ? 'Module(s)' : 'Subject'}</label><input type="text" id="editSubject" value="${u.subject || ''}" ${isTertiary() ? '' : `list="editSubjectList"`}>${isTertiary() ? '' : subjectsDatalist('editSubjectList')}</div>
                       <div><label>${isTertiary() ? 'Title' : 'Class'}</label><input type="text" id="editClass" value="${u.class || ''}"></div>
                     </div>`;
                 return '';
@@ -5623,7 +6065,7 @@
         </div>
       </div>
       <div class="grid2">
-        <div><label>Subject</label><input type="text" id="resSubject" placeholder="e.g. Mathematics"></div>
+        <div><label>Subject</label><input type="text" id="resSubject" placeholder="e.g. Mathematics" list="resSubjectList">${subjectsDatalist('resSubjectList')}</div>
         <div><label>Class / Grade (optional)</label><input type="text" id="resClass" placeholder="e.g. Form 4A, or leave blank for All"></div>
       </div>
       <div class="grid2">
@@ -5733,7 +6175,7 @@
           </div>
         </div>
         <div class="grid2">
-          <div><label>Subject</label><input type="text" id="eSubject-${res.id}" value="${res.subject || ''}"></div>
+          <div><label>Subject</label><input type="text" id="eSubject-${res.id}" value="${res.subject || ''}" list="eSubjectList-${res.id}">${subjectsDatalist('eSubjectList-' + res.id)}</div>
           <div><label>Class / Grade</label><input type="text" id="eClass-${res.id}" value="${res.classLevel || ''}"></div>
         </div>
         <div class="grid2">
@@ -5938,7 +6380,7 @@
     ${opts.canPost ? `<div class="panel">
       <h3 style="font-size:15px;">Start a new thread</h3>
       <div class="grid2">
-        <div><label>Subject</label><input type="text" id="thSubject" placeholder="e.g. Mathematics"></div>
+        <div><label>Subject</label><input type="text" id="thSubject" placeholder="e.g. Mathematics" list="thSubjectList">${subjectsDatalist('thSubjectList')}</div>
         ${opts.scopeClass ? '' : `<div><label>Class</label><input type="text" id="thClass" value="${user.class || ''}" placeholder="e.g. Form 4A"></div>`}
       </div>
       <label>Title</label><input type="text" id="thTitle" placeholder="What's this about?">
@@ -6289,7 +6731,7 @@
     <div class="panel">
       <h3 style="font-size:15px;">Add a term</h3>
       <div class="grid2">
-        <div><label>Subject</label><input type="text" id="glSubject" placeholder="e.g. Mathematics" value="${user.subject || ''}"></div>
+        <div><label>Subject</label><input type="text" id="glSubject" placeholder="e.g. Mathematics" value="${user.subject || ''}" list="glSubjectList">${subjectsDatalist('glSubjectList')}</div>
         <div><label>Term</label><input type="text" id="glTerm" placeholder="e.g. Coefficient"></div>
       </div>
       <label>Definition</label><textarea id="glDef" placeholder="Explain it in your own words"></textarea>
@@ -7462,7 +7904,7 @@
         <div><label>Start time</label><input type="time" id="ttStart" value="08:00"></div>
         <div><label>End time</label><input type="time" id="ttEnd" value="09:00"></div>
       </div>
-      <div><label>${tertiary ? 'Module / Title' : 'Subject'}</label><input type="text" id="ttTitle" placeholder="${tertiary ? 'e.g. STA302 \u2014 Statistical Inference II' : 'e.g. Mathematics'}"></div>
+      <div><label>${tertiary ? 'Module / Title' : 'Subject'}</label><input type="text" id="ttTitle" placeholder="${tertiary ? 'e.g. STA302 \u2014 Statistical Inference II' : 'e.g. Mathematics'}" ${tertiary ? '' : `list="ttSubjectList"`}>${tertiary ? '' : subjectsDatalist('ttSubjectList')}</div>
       <div class="grid2">
         <div><label>${tertiary ? 'Lecturer' : 'Teacher'} (optional)</label><select class="field" id="ttTeacher"><option value="">Unassigned</option>${teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}</select></div>
         <div><label>Venue</label><input type="text" id="ttVenue" placeholder="e.g. Room 12"></div>
@@ -7698,6 +8140,7 @@
         function renderOwner() { renderOwnerCore(); renderCallsSettingsIntoOwner(); }
         function renderOwnerCore() {
             const schools = getSchools();
+            const githubCfg = getGithubConfig();
             const total = schools.length;
             const active = schools.filter(s => s.status !== 'suspended' && s.status !== 'pending').length;
             const suspended = schools.filter(s => s.status === 'suspended').length;
@@ -7854,6 +8297,60 @@
           </tr>`).join('')}
         </tbody>
       </table>` : '<div class="empty">No schools match that search.</div>'}
+    </div>
+
+    <div class="panel">
+      <h3 style="font-size:16px; margin:0 0 4px;">GitHub Registry Sync</h3>
+      <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the school directory (name, school email, region, type, status) to a JSON file in a GitHub repository, so school names/emails can be recognized and added there too. Optional and off until you fill this in.</p>
+      ${githubConfigured() ? `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
+        ${ownerSyncBusy ? '⏳ Syncing with GitHub…' : '✓ Auto-sync is on — every registration, edit, suspend/activate, or delete is pushed to the repo automatically, no manual step needed.'}
+      </p>` : ''}
+      <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">⚠ This is a static, browser-only app with no server of its own. The token below is saved in this browser and sent straight to api.github.com from here — it is not hidden from anyone with access to this device. Use a <strong>fine-grained Personal Access Token scoped to only this one repository's Contents (read/write)</strong>, not a broad classic token, and don't paste a real token into a copy of this file you hand to someone else.</p>
+      <div class="grid2">
+        <div><label>Personal Access Token</label><div class="pw-field"><input type="password" id="ghToken" value="${escapeHtml(githubCfg.token || '')}" placeholder="github_pat_…"><button type="button" class="pw-eye" data-target="ghToken" aria-label="Show token">👁</button></div></div>
+        <div><label>Repo owner / org</label><input type="text" id="ghOwner" value="${escapeHtml(githubCfg.owner || '')}" placeholder="e.g. mzwandile"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Repository name</label><input type="text" id="ghRepo" value="${escapeHtml(githubCfg.repo || '')}" placeholder="e.g. eduportal-data"></div>
+        <div><label>Branch</label><input type="text" id="ghBranch" value="${escapeHtml(githubCfg.branch || 'main')}" placeholder="main"></div>
+      </div>
+      <label>File path in the repo</label>
+      <input type="text" id="ghPath" value="${escapeHtml(githubCfg.path || 'eduportal-schools.json')}" placeholder="eduportal-schools.json">
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+        <button type="button" class="btn secondary small" id="ghSaveBtn">Save settings</button>
+        <button type="button" class="btn small" id="ghPushBtn">Push registry now</button>
+        <button type="button" class="btn secondary small" id="ghPullBtn">Pull &amp; recognize from GitHub</button>
+      </div>
+      <p class="muted" style="font-size:12px; margin-top:10px;">
+        ${githubCfg.lastSyncAt ? `Last pushed: ${new Date(githubCfg.lastSyncAt).toLocaleString()}${githubCfg.lastSyncReason ? ` (${escapeHtml(githubCfg.lastSyncReason)})` : ''}. ` : ''}
+        ${githubCfg.lastSyncCommitUrl ? `GitHub confirmed the commit: <a href="${githubCfg.lastSyncCommitUrl}" target="_blank" rel="noopener">${(githubCfg.lastSyncCommitSha || '').slice(0, 7)}</a>. ` : ''}
+        ${githubCfg.lastPullAt ? `Last pulled: ${new Date(githubCfg.lastPullAt).toLocaleString()}. ` : ''}
+        ${githubCfg.lastSyncError ? `<span style="color:#a8531f;">Last error: ${escapeHtml(githubCfg.lastSyncError)}</span>` : (githubCfg.lastSyncAt || githubCfg.lastPullAt ? 'No errors.' : 'Not synced yet.')}
+      </p>
+    </div>
+
+    <div class="panel">
+      <h3 style="font-size:16px; margin:0 0 4px;">Full Data Sync — everything, not just schools</h3>
+      <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the <strong>entire</strong> EduPortal database — every school's users, gradebooks, attendance, materials, announcements, discussion rooms, the Owner's own records, all of it — to one JSON file in the same repository. Once turned on, it fires automatically after <em>any</em> change anywhere in the app, by anyone, not just from the Owner Console. Uses the same token / owner / repo / branch entered above.</p>
+      <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">This pushes via GitHub's Git Data API rather than the simple file API, specifically so it isn't capped at 1MB — it can handle files up to about 100MB. Frequent changes are batched (a few seconds of quiet) so you don't get a commit per keystroke, but a busy school could still generate a lot of commits over a day. Needs the school registry pushed at least once first (that's what creates the branch this relies on).</p>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="ghFullEnabled" style="width:auto;" ${githubCfg.fullSyncEnabled ? 'checked' : ''}>
+        <span>Enable full data sync</span>
+      </label>
+      <label style="margin-top:10px;">Full backup file path</label>
+      <input type="text" id="ghFullPath" value="${escapeHtml(githubCfg.fullPath || 'eduportal-full-backup.json')}" placeholder="eduportal-full-backup.json">
+      ${githubFullSyncConfigured() ? `<p class="muted" style="font-size:12.5px; margin:10px 0 0; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
+        ${fullSyncBusy ? '⏳ Syncing the full database with GitHub…' : '✓ Full auto-sync is on — every change anywhere in EduPortal is pushed to the repo.'}
+      </p>` : ''}
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+        <button type="button" class="btn secondary small" id="ghFullSaveBtn">Save settings</button>
+        <button type="button" class="btn small" id="ghFullPushBtn">Push full backup now</button>
+      </div>
+      <p class="muted" style="font-size:12px; margin-top:10px;">
+        ${githubCfg.lastFullSyncAt ? `Last full sync: ${new Date(githubCfg.lastFullSyncAt).toLocaleString()}${githubCfg.lastFullSyncReason ? ` (${escapeHtml(githubCfg.lastFullSyncReason)})` : ''}. ` : ''}
+        ${githubCfg.lastFullSyncCommitUrl ? `GitHub confirmed the commit: <a href="${githubCfg.lastFullSyncCommitUrl}" target="_blank" rel="noopener">${(githubCfg.lastFullSyncCommitSha || '').slice(0, 7)}</a>. ` : ''}
+        ${githubCfg.lastFullSyncError ? `<span style="color:#a8531f;">Last error: ${escapeHtml(githubCfg.lastFullSyncError)}</span>` : (githubCfg.lastFullSyncAt ? 'No errors.' : 'Not synced yet.')}
+      </p>
     </div>
 
     <div class="panel">
@@ -8042,6 +8539,18 @@
           </div>
           <p class="muted" style="font-size:12px; margin:6px 0 0;">Creates a brand-new role for this school only. It'll appear in the role switcher and as an option when registering users.</p>
         </div>
+        <div style="border-top:1px solid var(--rule); margin-top:16px; padding-top:14px;">
+          <h4 style="font-size:14px; margin:0 0 4px;">Default Subjects</h4>
+          <p class="muted" style="font-size:12px; margin:0 0 10px;">Suggested subjects offered wherever a Subject field appears for this school (teacher accounts, library resources, forum threads, glossary, timetable). Staff can still type anything else — this just gives them a dropdown of common ones to pick from.</p>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+            ${schoolCustomSubjects(customizeSchool).map(subj => `<span style="display:inline-flex; align-items:center; gap:5px; border:1px solid var(--rule); border-radius:14px; padding:3px 5px 3px 10px; font-size:12.5px;">${escapeHtml(subj)}<button type="button" class="btn danger small" data-delete-subject="${escapeHtml(subj)}" title="Remove" style="padding:0 6px; font-size:11px; border-radius:10px;">×</button></span>`).join('') || '<span class="muted" style="font-size:13px;">No subjects yet — using the generic default list below.</span>'}
+          </div>
+          <div style="display:flex; gap:8px; align-items:flex-start;">
+            <input type="text" id="newSubjectLabel" placeholder="e.g. Agriculture" value="${escapeHtml(ownerState.customizeNewSubjectLabel || '')}" style="flex:1;">
+            <button type="button" class="btn small" id="addSubjectBtn" style="flex-shrink:0;">+ Add subject</button>
+            <button type="button" class="btn secondary small" id="resetSubjectsBtn" style="flex-shrink:0;">Reset to default</button>
+          </div>
+        </div>
       </div>
       ` : ''}
     </div>
@@ -8224,6 +8733,7 @@
                     saveSchools(schoolsArr);
                     logOwnerActivity('Edited school', name);
                     ownerState.editingId = null;
+                    syncSchoolsToGithub(`edited school — ${name}`);
                 } else {
                     const newSchool = {
                         id: uniqueSchoolId(name), name, region: fd.get('region') || '', address: fd.get('address') || '',
@@ -8238,6 +8748,7 @@
                     seedSchoolIfNeeded(newSchool.id);
                     logOwnerActivity('Registered new school', name);
                     ownerState.formOpen = false;
+                    syncSchoolsToGithub(`registered new school — ${name}`);
                 }
                 ownerState.badgeDraft = '';
                 ownerState.badgeDraftFor = undefined;
@@ -8274,6 +8785,62 @@
                     renderOwner();
                     schoolSearchInput.focus();
                 }
+            };
+
+            // ---- GitHub Registry Sync ----
+            const ghTokenInput = document.getElementById('ghToken');
+            if (ghTokenInput) wirePwEyeButtons(ghTokenInput.closest('.panel'));
+            const ghSaveBtn = document.getElementById('ghSaveBtn');
+            if (ghSaveBtn) ghSaveBtn.onclick = () => {
+                const cfg = {
+                    ...getGithubConfig(),
+                    token: document.getElementById('ghToken').value.trim(),
+                    owner: document.getElementById('ghOwner').value.trim(),
+                    repo: document.getElementById('ghRepo').value.trim(),
+                    branch: document.getElementById('ghBranch').value.trim() || 'main',
+                    path: document.getElementById('ghPath').value.trim() || 'eduportal-schools.json',
+                };
+                saveGithubConfig(cfg);
+                alert('GitHub sync settings saved.');
+                renderOwner();
+            };
+            const ghPushBtn = document.getElementById('ghPushBtn');
+            if (ghPushBtn) ghPushBtn.onclick = async () => {
+                if (!githubConfigured()) { alert('Fill in and save the GitHub sync settings first.'); return; }
+                ghPushBtn.disabled = true; ghPushBtn.textContent = 'Pushing…';
+                await syncSchoolsToGithub('manual push from Owner Console');
+                const err = getGithubConfig().lastSyncError;
+                alert(err ? 'GitHub push failed: ' + err : 'School registry pushed to GitHub.');
+                renderOwner();
+            };
+
+            // ---- GitHub Full Data Sync ----
+            const ghFullSaveBtn = document.getElementById('ghFullSaveBtn');
+            if (ghFullSaveBtn) ghFullSaveBtn.onclick = () => {
+                const cfg = {
+                    ...getGithubConfig(),
+                    fullSyncEnabled: document.getElementById('ghFullEnabled').checked,
+                    fullPath: document.getElementById('ghFullPath').value.trim() || 'eduportal-full-backup.json',
+                };
+                saveGithubConfig(cfg);
+                alert('Full data sync settings saved.' + (cfg.fullSyncEnabled ? ' It will now push automatically after every change.' : ''));
+                renderOwner();
+            };
+            const ghFullPushBtn = document.getElementById('ghFullPushBtn');
+            if (ghFullPushBtn) ghFullPushBtn.onclick = async () => {
+                if (!getGithubConfig().token || !getGithubConfig().owner || !getGithubConfig().repo) { alert('Fill in and save the token, repo owner and repository name in the GitHub Registry Sync panel first.'); return; }
+                ghFullPushBtn.disabled = true; ghFullPushBtn.textContent = 'Pushing…';
+                const cfg = { ...getGithubConfig(), fullPath: document.getElementById('ghFullPath').value.trim() || 'eduportal-full-backup.json' };
+                saveGithubConfig(cfg);
+                await runFullGithubSync('manual full push from Owner Console');
+                const err = getGithubConfig().lastFullSyncError;
+                alert(err ? 'GitHub full push failed: ' + err : 'Full database pushed to GitHub.');
+                renderOwner();
+            };
+            const ghPullBtn = document.getElementById('ghPullBtn');
+            if (ghPullBtn) ghPullBtn.onclick = async () => {
+                ghPullBtn.disabled = true; ghPullBtn.textContent = 'Pulling…';
+                await pullSchoolsFromGithub();
             };
 
             const aiPromptInput = document.getElementById('aiPrompt');
@@ -8338,8 +8905,10 @@
                 if (s) {
                     s.status = s.status === 'suspended' ? 'active' : 'suspended';
                     saveSchools(schoolsArr);
-                    logOwnerActivity(s.status === 'suspended' ? 'Suspended school' : 'Activated school', s.name);
+                    const actionLabel = s.status === 'suspended' ? 'Suspended school' : 'Activated school';
+                    logOwnerActivity(actionLabel, s.name);
                     renderOwner();
+                    syncSchoolsToGithub(`${actionLabel.toLowerCase()} — ${s.name}`);
                 }
             });
             main.querySelectorAll('[data-delete]').forEach(b => b.onclick = () => {
@@ -8355,6 +8924,7 @@
                 if (currentSchoolId === id) { currentSchoolId = 'demo'; NavDB.set('activeSchoolId', 'demo'); }
                 if (ownerState.editingId === id) ownerState.editingId = null;
                 renderOwner();
+                syncSchoolsToGithub(`deleted school — ${s ? s.name : id}`);
             });
             main.querySelectorAll('[data-export]').forEach(b => b.onclick = () => exportSchoolBackup(b.dataset.export));
 
@@ -8530,6 +9100,46 @@
                     schoolsArr[idx] = { ...schoolsArr[idx], customRoles, customTabs };
                     saveSchools(schoolsArr);
                     if (ownerState.customizeExpandedRole === rk) ownerState.customizeExpandedRole = null;
+                    renderOwner();
+                });
+
+                // ---- Add / delete / reset this school's default subjects ----
+                const newSubjectInput = document.getElementById('newSubjectLabel');
+                if (newSubjectInput) newSubjectInput.oninput = (e) => { ownerState.customizeNewSubjectLabel = e.target.value; };
+                const addSubjectBtn = document.getElementById('addSubjectBtn');
+                if (addSubjectBtn) addSubjectBtn.onclick = () => {
+                    const label = (ownerState.customizeNewSubjectLabel || '').trim();
+                    if (!label) { alert('Give the subject a name first.'); return; }
+                    const schoolsArr = getSchools();
+                    const idx = schoolsArr.findIndex(s => s.id === customizeSchool.id);
+                    if (idx === -1) return;
+                    const current = schoolCustomSubjects(schoolsArr[idx]).length ? schoolCustomSubjects(schoolsArr[idx]) : [...DEFAULT_SUBJECTS];
+                    if (current.some(s => s.toLowerCase() === label.toLowerCase())) { alert('That subject is already in the list.'); return; }
+                    schoolsArr[idx] = { ...schoolsArr[idx], subjects: [...current, label] };
+                    saveSchools(schoolsArr);
+                    ownerState.customizeNewSubjectLabel = '';
+                    renderOwner();
+                };
+                const resetSubjectsBtn = document.getElementById('resetSubjectsBtn');
+                if (resetSubjectsBtn) resetSubjectsBtn.onclick = () => {
+                    if (!confirm('Reset this school\'s subjects back to the generic default list? Any subjects you added or removed here will be lost.')) return;
+                    const schoolsArr = getSchools();
+                    const idx = schoolsArr.findIndex(s => s.id === customizeSchool.id);
+                    if (idx === -1) return;
+                    const updated = { ...schoolsArr[idx] };
+                    delete updated.subjects;
+                    schoolsArr[idx] = updated;
+                    saveSchools(schoolsArr);
+                    renderOwner();
+                };
+                main.querySelectorAll('[data-delete-subject]').forEach(b => b.onclick = () => {
+                    const subj = b.dataset.deleteSubject;
+                    const schoolsArr = getSchools();
+                    const idx = schoolsArr.findIndex(s => s.id === customizeSchool.id);
+                    if (idx === -1) return;
+                    const current = schoolCustomSubjects(schoolsArr[idx]).length ? schoolCustomSubjects(schoolsArr[idx]) : [...DEFAULT_SUBJECTS];
+                    schoolsArr[idx] = { ...schoolsArr[idx], subjects: current.filter(s => s !== subj) };
+                    saveSchools(schoolsArr);
                     renderOwner();
                 });
 
