@@ -1499,6 +1499,8 @@
         <div style="font-size:13px; color:#6b6557;">Connecting to cloud storage…</div>
     </div>
 
+    <div id="ownerPwModalOverlay" style="display:none;"></div>
+
     <div id="cloudErrorBanner"
         style="display:none; position:fixed; left:0; right:0; bottom:0; z-index:9998; background:#a8531f; color:#fff; font-family:'IBM Plex Sans',-apple-system,Segoe UI,sans-serif; font-size:13px; padding:10px 16px; align-items:center; justify-content:center; gap:10px; text-align:center;">
         <span>Some changes couldn't be saved to the cloud just now. Check your connection — recent edits may not have
@@ -1507,19 +1509,18 @@
             style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; padding:3px 9px; cursor:pointer; font-size:12px;">Dismiss</button>
     </div>
 
-    <div id="localOnlyBanner"
-        style="display:none; position:fixed; left:0; right:0; bottom:0; z-index:9998; background:#5b4b1f; color:#fff; font-family:'IBM Plex Sans',-apple-system,Segoe UI,sans-serif; font-size:13px; padding:10px 16px; align-items:center; justify-content:center; gap:10px; text-align:center;">
-        <span>No online storage is configured yet — data is only being saved on this device/browser and won't appear
-            on other devices. See the setup note near ONLINE_STORE_BIN_ID in the page source.</span>
-        <button onclick="document.getElementById('localOnlyBanner').style.display='none'"
-            style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; padding:3px 9px; cursor:pointer; font-size:12px;">Dismiss</button>
-    </div>
-
-    <div id="storageModeBanner"
-        style="display:none; position:fixed; left:0; right:0; bottom:48px; z-index:9998; background:#214d7a; color:#fff; font-family:'IBM Plex Sans',-apple-system,Segoe UI,sans-serif; font-size:13px; padding:10px 16px; align-items:center; justify-content:center; gap:10px; text-align:center;">
-        <span id="storageModeBannerText">Storage ready.</span>
-        <button onclick="document.getElementById('storageModeBanner').style.display='none'"
-            style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; padding:3px 9px; cursor:pointer; font-size:12px;">Dismiss</button>
+    <div id="landingView" style="display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; padding:40px 20px; gap:28px;">
+        <div style="text-align:center;">
+            <div style="font-family:var(--display); font-size:30px; font-weight:600;">EduPortal</div>
+            <div style="color:var(--muted); font-size:14px; margin-top:4px;">Find your school to sign in</div>
+        </div>
+        <div style="width:100%; max-width:440px;">
+            <input type="text" id="landingSearchInput" placeholder="Type your school's name or school email…"
+                autocomplete="off"
+                style="width:100%; padding:12px 14px; font-size:15px; border:1px solid var(--rule); border-radius:8px; background:var(--panel); color:var(--ink); font-family:var(--body);">
+            <div id="landingResults" style="margin-top:14px; display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+        <button type="button" id="landingOwnerLink" class="btn secondary small" style="opacity:.7;">Owner / Staff sign in</button>
     </div>
 
     <div id="ownerView" style="display:none;">
@@ -1530,7 +1531,11 @@
                     <h1>EduPortal — Owner Console</h1>
                 </div>
             </div>
-            <div class="role-switch"><span>System Owner</span></div>
+            <div class="role-switch">
+                <span>System Owner</span>
+                <button class="btn secondary small" id="ownerChangePwBtn" style="margin-left:8px;">Change Password</button>
+                <button class="btn secondary small" id="ownerSignOutBtn">Sign Out</button>
+            </div>
         </div>
         <div class="layout">
             <main id="ownerMain"></main>
@@ -1885,16 +1890,10 @@
             if (banner) banner.style.display = 'flex';
         }
         function showLocalOnlyWarning() {
-            const banner = document.getElementById('localOnlyBanner');
-            if (banner) banner.style.display = 'flex';
+            // Intentionally disabled — local-only storage banner removed.
         }
         function showStorageModeBanner(message) {
-            const banner = document.getElementById('storageModeBanner');
-            const text = document.getElementById('storageModeBannerText');
-            if (banner && text) {
-                text.textContent = message;
-                banner.style.display = 'flex';
-            }
+            // Intentionally disabled — storage-mode toast banners removed.
         }
         async function saveRemoteStoragePayload() {
             if (hasCloud) {
@@ -2022,7 +2021,6 @@
                             if (r) cloudCache[k] = r.value;
                         } catch (e) { console.error('Cloud load failed for', k, e); }
                     }
-                    showStorageModeBanner('Using shared online storage via Claude cloud sync.');
                 } catch (e) {
                     console.error('Initial cloud load failed', e);
                     showCloudSaveWarning();
@@ -2081,8 +2079,6 @@
                     cloudCache[k] = window.localStorage.getItem(k);
                 }
             } catch (e) { console.error('Local storage load failed', e); }
-            showStorageModeBanner('Using this device/browser storage only.');
-            showLocalOnlyWarning();
         }
 
         /* ---------------- Background sync (multiple devices open at once) ----------------
@@ -2420,6 +2416,24 @@
             while (taken.has(base + '-' + i)) i++;
             return base + '-' + i;
         }
+        /* A short, memorable handle generated straight from the school's name —
+           e.g. "Salesian High School" -> "salesianhigh@eduportal.app". This is
+           what students type into the "Find your school" search below; it isn't
+           a real mailbox, just an easy-to-share, easy-to-search identifier.
+           Change SCHOOL_EMAIL_DOMAIN below to your own domain if you have one. */
+        const SCHOOL_EMAIL_DOMAIN = 'eduportal.app';
+        function generateSchoolEmail(name, existingEmails) {
+            const stripped = (name || 'school').toString().toLowerCase()
+                .replace(/\b(high|primary|secondary|junior|senior|school|college|academy|institute|university)\b/g, '')
+                .replace(/[^a-z0-9]+/g, '');
+            const base = stripped.slice(0, 24) || 'school';
+            const taken = existingEmails instanceof Set ? existingEmails
+                : new Set(getSchools().map(s => s.schoolEmail).filter(Boolean));
+            let handle = base;
+            let i = 2;
+            while (taken.has(handle + '@' + SCHOOL_EMAIL_DOMAIN)) { handle = base + i; i++; }
+            return handle + '@' + SCHOOL_EMAIL_DOMAIN;
+        }
         function todayISO() { return new Date().toISOString().slice(0, 10); }
 
         /* Seed the original demo school's data once */
@@ -2723,6 +2737,25 @@
             get(key, fallback) { try { const v = lsGet(OWNER_NS + key); const parsed = v ? JSON.parse(v) : fallback; return parsed == null ? fallback : parsed; } catch (e) { return fallback; } },
             set(key, val) { try { lsSet(OWNER_NS + key, JSON.stringify(val)); return true; } catch (e) { console.error('Owner storage write failed for', key, e); return false; } }
         };
+        /* NAVIGATION state (which screen THIS browser is looking at right now —
+           appMode / activeSchoolId / ownerAccess) is deliberately kept OUT of the
+           shared cloud store. OwnerDB above is shared across every visitor on
+           purpose (school registry, roster data, etc. — that's the whole point
+           of cloud sync). But "which screen am I on" is per-visitor: it must
+           NOT leak between browsers, or one person opening the Owner Console
+           would flip every other visitor on the site into the Owner Console
+           too on their next load. NavDB always uses this browser's own
+           localStorage directly, cloud or no cloud. */
+        const NavDB = {
+            get(key, fallback) {
+                try { const v = window.localStorage.getItem('eduportal_nav_' + key); const parsed = v ? JSON.parse(v) : fallback; return parsed == null ? fallback : parsed; }
+                catch (e) { return fallback; }
+            },
+            set(key, val) {
+                try { window.localStorage.setItem('eduportal_nav_' + key, JSON.stringify(val)); return true; }
+                catch (e) { console.error('Nav storage write failed for', key, e); return false; }
+            }
+        };
 
         function getSchools() {
             let schools = OwnerDB.get('schools', null);
@@ -2742,6 +2775,20 @@
                 }];
                 OwnerDB.set('schools', schools);
             }
+            // Backfill: any school (old data, or the seed list above) missing a
+            // generated search handle gets one now, derived from its current
+            // name exactly as stored — so renaming a school and revisiting the
+            // Owner Console will pick up the new name here too.
+            const usedEmails = new Set(schools.map(s => s.schoolEmail).filter(Boolean));
+            let changed = false;
+            schools.forEach(s => {
+                if (!s.schoolEmail) {
+                    s.schoolEmail = generateSchoolEmail(s.name, usedEmails);
+                    usedEmails.add(s.schoolEmail);
+                    changed = true;
+                }
+            });
+            if (changed) OwnerDB.set('schools', schools);
             return schools;
         }
         function saveSchools(s) { return OwnerDB.set('schools', s); }
@@ -2781,6 +2828,7 @@
                 type: 'High School', contactName: p.contact || '', contactPhone: p.phone || '',
                 contactEmail: '', status: 'active', registeredAt: new Date().toISOString(),
                 badge: '', seoDescription: '', seoKeywords: '', seoDiscoverable: true, theme: {},
+                schoolEmail: generateSchoolEmail(p.schoolName),
             };
             schoolsArr.push(newSchool);
             saveSchools(schoolsArr);
@@ -3017,11 +3065,11 @@
         function enterSchool(id, opts) {
             seedSchoolIfNeeded(id);
             currentSchoolId = id;
-            OwnerDB.set('activeSchoolId', id);
+            NavDB.set('activeSchoolId', id);
             appMode = 'school';
-            OwnerDB.set('appMode', 'school');
+            NavDB.set('appMode', 'school');
             ownerAccess = !!(opts && opts.asOwner);
-            OwnerDB.set('ownerAccess', ownerAccess);
+            NavDB.set('ownerAccess', ownerAccess);
             authedUser = null;
             loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
             if (ownerAccess) {
@@ -3035,9 +3083,9 @@
         }
         function backToOwnerConsole() {
             appMode = 'owner';
-            OwnerDB.set('appMode', 'owner');
+            NavDB.set('appMode', 'owner');
             ownerAccess = false;
-            OwnerDB.set('ownerAccess', false);
+            NavDB.set('ownerAccess', false);
             authedUser = null;
             showView();
         }
@@ -3047,9 +3095,19 @@
             loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
             showView();
         }
+        function backToLanding() {
+            appMode = 'landing';
+            NavDB.set('appMode', 'landing');
+            ownerAccess = false;
+            NavDB.set('ownerAccess', false);
+            authedUser = null;
+            showView();
+        }
         function showView() {
+            document.getElementById('landingView').style.display = appMode === 'landing' ? 'flex' : 'none';
             document.getElementById('ownerView').style.display = appMode === 'owner' ? 'block' : 'none';
             document.getElementById('schoolView').style.display = appMode === 'school' ? 'block' : 'none';
+            if (appMode === 'landing') { applySchoolTheme(null); updateSEOMetaTags(null); renderLanding(); return; }
             if (appMode === 'owner') { applySchoolTheme(null); updateSEOMetaTags(null); renderOwner(); return; }
             if (appMode !== 'school') return;
             // Set the browser tab title / SEO tags to this school's name right
@@ -3075,6 +3133,164 @@
             if (signedIn) render(); else renderLoginGate();
         }
         document.getElementById('signOutBtn').addEventListener('click', signOut);
+
+        /* ---------------- Landing / "Find your school" search ----------------
+           The public default view for anyone opening the bare site URL with no
+           ?school= link. Lets a student search by school name or by the
+           auto-generated school email (see generateSchoolEmail above) and jump
+           straight into that school's login gate. */
+        let landingSearch = '';
+        function renderLanding() {
+            const input = document.getElementById('landingSearchInput');
+            if (input && document.activeElement !== input) input.value = landingSearch;
+            const q = landingSearch.trim().toLowerCase();
+            const results = document.getElementById('landingResults');
+            if (!q) {
+                results.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">Start typing to find your school…</div>`;
+                return;
+            }
+            const schools = getSchools().filter(s => s.status === 'active');
+            const matches = schools.filter(s => s.name.toLowerCase().includes(q) || (s.schoolEmail || '').toLowerCase().includes(q));
+            if (!matches.length) {
+                results.innerHTML = `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">No school matches "${escapeHtml(landingSearch)}".</div>`;
+                return;
+            }
+            results.innerHTML = matches.map(s => `
+                <button type="button" class="landing-result-btn" data-id="${s.id}"
+                    style="display:flex; align-items:center; gap:10px; text-align:left; width:100%; padding:10px 12px; border:1px solid var(--rule); border-radius:8px; background:var(--panel); cursor:pointer; font-family:var(--body);">
+                    ${s.badge ? `<img src="${s.badge}" alt="" style="width:28px;height:28px;object-fit:contain;border-radius:5px;border:1px solid var(--rule);background:#fff;flex-shrink:0;">` : `<span style="width:28px;height:28px;border-radius:5px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">${escapeHtml((s.name || '?').slice(0, 1).toUpperCase())}</span>`}
+                    <span style="flex:1; min-width:0;">
+                        <span style="display:block; font-weight:600; font-size:14px; color:var(--ink);">${escapeHtml(s.name)}</span>
+                        <span style="display:block; font-size:12px; color:var(--muted);">${escapeHtml(s.schoolEmail || '')}${s.region ? ' · ' + escapeHtml(s.region) : ''}</span>
+                    </span>
+                </button>
+            `).join('');
+            results.querySelectorAll('.landing-result-btn').forEach(btn => {
+                btn.onclick = () => enterSchool(btn.dataset.id);
+            });
+        }
+        document.getElementById('landingSearchInput').addEventListener('input', (e) => {
+            landingSearch = e.target.value;
+            renderLanding();
+        });
+        document.getElementById('landingOwnerLink').addEventListener('click', openOwnerAuthModal);
+
+        /* ---------------- Owner Console password gate ----------------
+           The Owner Console has no per-account login (it's not tied to any
+           school's user list), so it needs its own single password, set by
+           whoever first claims it and required from then on. Stored under
+           OwnerDB (shared cloud storage) as just a hash — same sha256Hex
+           approach used for regular user accounts — so it works the same way
+           from any of the Owner's devices, not just the one that set it. */
+        function openOwnerAuthModal() {
+            const overlay = document.getElementById('ownerPwModalOverlay');
+            const hasPw = !!OwnerDB.get('ownerPasswordHash', null);
+            overlay.style.display = 'flex';
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = hasPw ? `
+      <div class="login-card" style="max-width:340px;">
+        <h3 style="margin:0 0 4px; font-size:16px;">Owner Sign In</h3>
+        <p class="muted" style="font-size:13px; margin:0 0 6px;">Enter the Owner Console password.</p>
+        <form id="ownerAuthForm">
+          <label for="ownerAuthPw">Password</label>
+          <div class="pw-field">
+            <input type="password" id="ownerAuthPw" autocomplete="current-password" required>
+            <button type="button" class="pw-eye" data-target="ownerAuthPw" aria-label="Show password">👁</button>
+          </div>
+          <div id="ownerAuthError" class="login-error" style="display:none;"></div>
+          <button type="submit" class="btn" style="width:100%; margin-top:14px;">Sign In</button>
+          <button type="button" class="btn secondary" id="ownerAuthCancel" style="width:100%; margin-top:8px;">Cancel</button>
+        </form>
+      </div>` : `
+      <div class="login-card" style="max-width:340px;">
+        <h3 style="margin:0 0 4px; font-size:16px;">Set Owner Password</h3>
+        <p class="muted" style="font-size:13px; margin:0 0 6px;">No Owner Console password has been set yet. Choose one now — you'll need it every time you come back to the Owner Console.</p>
+        <form id="ownerAuthForm">
+          <label for="ownerAuthPw">New password</label>
+          <div class="pw-field">
+            <input type="password" id="ownerAuthPw" autocomplete="new-password" minlength="4" required>
+            <button type="button" class="pw-eye" data-target="ownerAuthPw" aria-label="Show password">👁</button>
+          </div>
+          <label for="ownerAuthPw2">Confirm password</label>
+          <div class="pw-field">
+            <input type="password" id="ownerAuthPw2" autocomplete="new-password" minlength="4" required>
+            <button type="button" class="pw-eye" data-target="ownerAuthPw2" aria-label="Show password">👁</button>
+          </div>
+          <div id="ownerAuthError" class="login-error" style="display:none;"></div>
+          <button type="submit" class="btn" style="width:100%; margin-top:14px;">Set Password &amp; Continue</button>
+          <button type="button" class="btn secondary" id="ownerAuthCancel" style="width:100%; margin-top:8px;">Cancel</button>
+        </form>
+      </div>`;
+            wirePwEyeButtons(overlay);
+            document.getElementById('ownerAuthCancel').addEventListener('click', closeOwnerAuthModal);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOwnerAuthModal(); });
+            document.getElementById('ownerAuthForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const errEl = document.getElementById('ownerAuthError');
+                const pw = document.getElementById('ownerAuthPw').value;
+                if (hasPw) {
+                    const hash = await sha256Hex(pw);
+                    if (hash !== OwnerDB.get('ownerPasswordHash', null)) {
+                        errEl.textContent = 'Incorrect password.'; errEl.style.display = ''; return;
+                    }
+                    closeOwnerAuthModal();
+                    backToOwnerConsole();
+                } else {
+                    const pw2 = document.getElementById('ownerAuthPw2').value;
+                    if (pw.length < 4) { errEl.textContent = 'Password must be at least 4 characters.'; errEl.style.display = ''; return; }
+                    if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = ''; return; }
+                    OwnerDB.set('ownerPasswordHash', await sha256Hex(pw));
+                    closeOwnerAuthModal();
+                    backToOwnerConsole();
+                }
+            });
+        }
+        function closeOwnerAuthModal() {
+            const overlay = document.getElementById('ownerPwModalOverlay');
+            overlay.style.display = 'none';
+            overlay.innerHTML = '';
+        }
+        function openOwnerChangePasswordModal() {
+            const overlay = document.getElementById('ownerPwModalOverlay');
+            overlay.style.display = 'flex';
+            overlay.className = 'modal-overlay';
+            overlay.innerHTML = `
+      <div class="login-card" style="max-width:340px;">
+        <h3 style="margin:0 0 4px; font-size:16px;">Change Owner Password</h3>
+        <p class="muted" style="font-size:13px; margin:0 0 6px;">Choose a new password for the Owner Console.</p>
+        <form id="ownerAuthForm">
+          <label for="ownerAuthPw">New password</label>
+          <div class="pw-field">
+            <input type="password" id="ownerAuthPw" autocomplete="new-password" minlength="4" required>
+            <button type="button" class="pw-eye" data-target="ownerAuthPw" aria-label="Show password">👁</button>
+          </div>
+          <label for="ownerAuthPw2">Confirm password</label>
+          <div class="pw-field">
+            <input type="password" id="ownerAuthPw2" autocomplete="new-password" minlength="4" required>
+            <button type="button" class="pw-eye" data-target="ownerAuthPw2" aria-label="Show password">👁</button>
+          </div>
+          <div id="ownerAuthError" class="login-error" style="display:none;"></div>
+          <button type="submit" class="btn" style="width:100%; margin-top:14px;">Save Password</button>
+          <button type="button" class="btn secondary" id="ownerAuthCancel" style="width:100%; margin-top:8px;">Cancel</button>
+        </form>
+      </div>`;
+            wirePwEyeButtons(overlay);
+            document.getElementById('ownerAuthCancel').addEventListener('click', closeOwnerAuthModal);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOwnerAuthModal(); });
+            document.getElementById('ownerAuthForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const errEl = document.getElementById('ownerAuthError');
+                const pw = document.getElementById('ownerAuthPw').value;
+                const pw2 = document.getElementById('ownerAuthPw2').value;
+                if (pw.length < 4) { errEl.textContent = 'Password must be at least 4 characters.'; errEl.style.display = ''; return; }
+                if (pw !== pw2) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = ''; return; }
+                OwnerDB.set('ownerPasswordHash', await sha256Hex(pw));
+                closeOwnerAuthModal();
+                alert('Owner Console password updated.');
+            });
+        }
+        document.getElementById('ownerChangePwBtn').addEventListener('click', openOwnerChangePasswordModal);
+        document.getElementById('ownerSignOutBtn').addEventListener('click', backToLanding);
 
         let state = { roleTab: 'student', roleId: 's1', tab: null, roleMenuOpen: false, tabMenuOpen: false };
 
@@ -3125,8 +3341,11 @@
           </form>
           <p class="login-hint" style="text-align:center;">Don't know your username? Ask your school administrator.</p>
           <p class="login-hint" style="text-align:center;">No password on your account yet? Just sign in with your username \u2014 you can set a password from inside the portal any time.</p>
+          ${!schoolIdFromLink() ? `<p class="login-hint" style="text-align:center;"><a href="#" id="notYourSchoolLink">Not your school?</a></p>` : ''}
         </div>`;
             wirePwEyeButtons(gate);
+            const notYourSchoolLink = document.getElementById('notYourSchoolLink');
+            if (notYourSchoolLink) notYourSchoolLink.addEventListener('click', (e) => { e.preventDefault(); backToLanding(); });
             document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const username = document.getElementById('loginUsername').value.trim().toUpperCase();
@@ -7617,7 +7836,7 @@
         <thead><tr><th>School</th><th>Region</th><th>Contact</th><th>Users</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead>
         <tbody>
           ${filtered.map(s => `<tr>
-            <td><a href="${schoolAccessLink(s.id)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:8px;">${s.badge ? `<img src="${s.badge}" alt="" style="width:22px;height:22px;object-fit:contain;border-radius:4px;border:1px solid var(--rule);background:#fff;flex-shrink:0;">` : ''}<span>${s.name}</span></a>${s.isDemo ? ' <span class="tag scheduled">Demo</span>' : ''}</td>
+            <td><a href="${schoolAccessLink(s.id)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:8px;">${s.badge ? `<img src="${s.badge}" alt="" style="width:22px;height:22px;object-fit:contain;border-radius:4px;border:1px solid var(--rule);background:#fff;flex-shrink:0;">` : ''}<span>${s.name}</span></a>${s.isDemo ? ' <span class="tag scheduled">Demo</span>' : ''}<div style="font-size:11px; color:var(--muted); margin-top:2px;">${s.schoolEmail || generateSchoolEmail(s.name)}</div></td>
             <td>${s.region || '—'}</td>
             <td>${s.contactName || '—'}</td>
             <td>${schoolUserCount(s.id)}</td>
@@ -8012,6 +8231,7 @@
                         contactEmail: fd.get('contactEmail') || '', status: 'active', registeredAt: new Date().toISOString(),
                         badge: ownerState.badgeDraft || '', seoDescription, seoKeywords, seoDiscoverable,
                         theme: { accent: accentColor },
+                        schoolEmail: generateSchoolEmail(name),
                     };
                     schoolsArr.push(newSchool);
                     saveSchools(schoolsArr);
@@ -8132,7 +8352,7 @@
                 const remaining = getSchools().filter(x => x.id !== id);
                 saveSchools(remaining);
                 logOwnerActivity('Deleted school', s ? s.name : id);
-                if (currentSchoolId === id) { currentSchoolId = 'demo'; OwnerDB.set('activeSchoolId', 'demo'); }
+                if (currentSchoolId === id) { currentSchoolId = 'demo'; NavDB.set('activeSchoolId', 'demo'); }
                 if (ownerState.editingId === id) ownerState.editingId = null;
                 renderOwner();
             });
@@ -9524,8 +9744,8 @@
         (async function boot() {
             await loadCloudCache();
 
-            appMode = OwnerDB.get('appMode', 'owner');
-            currentSchoolId = OwnerDB.get('activeSchoolId', 'demo');
+            appMode = NavDB.get('appMode', 'landing');
+            currentSchoolId = NavDB.get('activeSchoolId', 'demo');
 
             getSchools();                      // ensure the schools registry exists
 
@@ -9543,10 +9763,13 @@
                 seedSchoolIfNeeded(linkedSchoolId);
                 enterSchool(linkedSchoolId);
             } else {
-                // Only reachable from the bare app URL (no ?school=), which is how
-                // the Owner accesses their own console — safe to restore whatever
-                // owner-access state that session left off in.
-                ownerAccess = OwnerDB.get('ownerAccess', false);
+                // Bare app URL (no ?school=). Defaults to the "Find your school"
+                // landing page for a fresh browser (see NavDB above — this is
+                // resolved per-device, never shared). If THIS browser previously
+                // clicked into the Owner Console, appMode/ownerAccess were saved
+                // locally and are restored here so the Owner lands back where
+                // they left off; every other visitor still sees the landing page.
+                ownerAccess = NavDB.get('ownerAccess', false);
                 seedSchoolIfNeeded(currentSchoolId); // make sure whichever school is active has data
                 showView();
             }
