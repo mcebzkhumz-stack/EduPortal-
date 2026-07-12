@@ -1,69 +1,101 @@
 # EduPortal
 
-A single-file, multi-school educational web platform (StudyMate — EduPortal
-Core) for schools in Eswatini. Role-based portals for Principal, Deputy,
-Teacher, Student, Admin, Librarian, and IT, plus an Owner Console for
-managing every school from one place.
+A single-file, multi-school management and learning portal (`index.html`)
+built for MNK Investments — school registration, role-based dashboards
+(Student, Teacher, Principal/Dean, Deputy, Administration, Librarian, IT
+Management), a full Tertiary/university mode, and an Owner Console for
+managing every school from one place. Everything runs client-side; there's
+no backend server to deploy.
 
-## What's in this repo
+This repo is the deploy-ready scaffold around that one file: the extra
+static assets it references (icons, manifest, service worker, SEO files)
+plus a GitHub Action that publishes it to GitHub Pages automatically.
+
+## Repo layout
 
 ```
-index.html            The entire app — HTML, CSS, and JS in one file
-manifest.json          PWA manifest (install prompt, icons, theme color)
-browserconfig.xml       Windows tile config
-service-worker.js       Offline app-shell caching (same-origin only)
-icons/eduportal-icon.svg
-.nojekyll               Tells GitHub Pages to serve files as-is, no Jekyll build
+index.html                     the entire app
+manifest.json                  PWA manifest ("Add to Home Screen")
+service-worker.js              minimal offline app-shell cache
+icons/eduportal-icon.svg       app icon
+browserconfig.xml              Windows tile config
+robots.txt / sitemap.xml       placeholders — see "Search engine setup" below
+.well-known/security.txt       responsible-disclosure contact (expires yearly)
+og-images/                     per-school link-preview images go here
+.github/workflows/deploy.yml   GitHub Pages deploy action
+proxy/                         optional Cloudflare Worker to hide the GitHub token (see proxy/README.md)
 ```
 
-Everything the app needs at runtime — school data, users, grades,
-announcements, etc. — is stored client-side (browser storage / an optional
-cloud backend), not in this repo. This repo is just the app shell.
+## Deploy to GitHub Pages
 
-## Deploying to GitHub Pages
+1. Push this repo to GitHub.
+2. Repo → **Settings → Pages → Build and deployment → Source** → **GitHub
+   Actions**. That's it — `.github/workflows/deploy.yml` handles the rest
+   on every push to `main`.
+3. Once deployed, the site is live at `https://{you}.github.io/{repo}/`
+   (or your custom domain, if you've set one up under Settings → Pages).
 
-1. Push this repo's contents to the root of a GitHub repository (or to a
-   `docs/` folder, or a `gh-pages` branch — whichever you point Pages at).
-2. In the repo, go to **Settings → Pages**, set the source to the branch/folder
-   you pushed to, and save.
-3. GitHub will publish it at `https://<your-username>.github.io/<repo-name>/`.
-   It can take a minute or two the first time.
-4. Once live, share a school's link as `https://.../index.html?school=<id>` —
-   the Owner Console's "Copy Link" button on each school builds this for you.
+The workflow also stamps the real commit SHA and deploy time into
+`index.html` in place of the `__BUILD_SHA__` / `__BUILD_DATE__`
+placeholders, so the small build-info line near the bottom of the app shows
+exactly which version is live. Opening the file straight from disk (or from
+a Claude artifact) will always show "Dev build" instead — that's expected,
+not a problem.
 
-`.nojekyll` is included so GitHub Pages doesn't run its default Jekyll build
-step, which isn't needed here and can otherwise interfere with how static
-files are served.
+## First run
 
-## Setting up GitHub sync from the Owner Console
+Open the deployed site once with no `?school=` in the URL to land on the
+Owner Console sign-in (**Staff Sign In** on the landing page). The very
+first Owner account you set up controls every school registered afterward.
 
-Once the Owner Console has schools registered, its **GitHub Registry Sync**
-and **Full Data Sync** panels can mirror data into a GitHub repository (this
-can be the same repo as the site, or a separate private one — a separate
-repo is recommended so school data isn't sitting in the same place as the
-public site code).
+## GitHub sync (optional, from inside the app)
 
-1. Create a **fine-grained personal access token**:
-   `https://github.com/settings/tokens/new`
-   - Scope it to **only** the repository you're syncing into.
-   - Grant **Contents: Read and write** — nothing else is needed.
-2. In the Owner Console's GitHub Registry Sync panel, enter the token, the
-   repo owner/org, repo name, branch, and a file path, then **Save settings**
-   and **Push registry now** once to create the initial commit.
-3. Optionally enable **Full Data Sync** underneath it to mirror the entire
-   app database (every school's users, grades, materials, everything) —
-   this fires automatically after any change anywhere in the app once
-   turned on.
+Owner Console → **GitHub Registry Sync** can mirror the school directory —
+and a second, simpler file of just school emails — into a GitHub repo of
+your choice (this one or a separate one), auto-pushing on every
+registration, edit, suspend/activate, or delete. Owner Console → **Full
+Data Sync** can mirror the *entire* app database the same way. Both need:
 
-**Security note:** this is a static, browser-only app with no server of its
-own. Any token entered in these panels is stored in that browser and sent
-directly to `api.github.com` from the page — it is not hidden from anyone
-with access to that device. That's why a fine-grained, single-repo,
-Contents-only token is important rather than a broad classic token.
+- A **fine-grained GitHub Personal Access Token**, scoped to only the
+  target repo's Contents (read/write) — not a broad classic token.
+- The repo owner/org and repo name.
 
-## Local preview
+Because this is a static app with no server, that token is stored in the
+browser and sent straight to `api.github.com` from there — see the warning
+shown in the panel itself. If that's a concern, use the optional Cloudflare
+Worker proxy in `proxy/` instead (`proxy/README.md` has setup steps) so the
+real token stays server-side.
 
-No build step — just open `index.html` in a browser, or serve the folder
-with any static file server (`python3 -m http.server`, VS Code's Live
-Server, etc.) if you want the service worker and manifest to register
-properly (service workers require `http://` or `https://`, not `file://`).
+## Search engine setup (per school)
+
+Owner Console → Registered Schools → **Search Setup**, per school,
+downloads:
+
+- `{schoolId}-sitemap.xml` / `{schoolId}-robots.txt`
+- `{schoolId}.png` — a 1200×630 link-preview banner, baked with that
+  school's own badge and (if uploaded) one of its photos
+- `{schoolId}-logo.png` — a square logo-only version
+
+Drop the banner and logo into `og-images/` (see `og-images/README.md`).
+There's also a combined sitemap covering every discoverable school at once
+(Owner Console → same panel → master sitemap download) — use that instead
+of stitching the per-school ones together by hand, and replace the
+placeholder `sitemap.xml` / `robots.txt` at the repo root with it.
+
+Tertiary schools get schema.org's `CollegeOrUniversity` type automatically
+in their structured data instead of the generic `EducationalOrganization`.
+
+None of this creates a Google Business Profile (the tabs/reviews/hours/map
+card you get when searching an established institution) — that's a
+separate, free listing claimed at
+[business.google.com](https://business.google.com) once the site is public.
+This just gives Google accurate data to work with when it crawls the page.
+
+## Updating the icon / manifest / service worker
+
+If you change the app's branding, regenerate `manifest.json` and
+`service-worker.js` to stay in sync — their exact contents are produced by
+`generateManifestJson()` / `generateServiceWorkerJs()` inside `index.html`,
+so copy from there (or wire a download button to them, the same way
+Search Setup already does for the other generated files) rather than
+hand-editing this repo's copies out of sync with the app.

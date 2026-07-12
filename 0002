@@ -1,0 +1,42 @@
+# EduPortal GitHub proxy (optional)
+
+Only needed if you don't want the GitHub token sitting in the browser for
+the **Full Data Sync** feature (Owner Console → Full Data Sync). The
+smaller "GitHub Registry Sync" (school registry + emails file) doesn't use
+this — that one always uses the token typed directly into the browser.
+
+## Deploy it
+
+Requires a free [Cloudflare](https://dash.cloudflare.com/sign-up) account
+and [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
+(`npm install -g wrangler`).
+
+```bash
+cd proxy
+wrangler login
+wrangler secret put GITHUB_TOKEN   # paste your fine-grained PAT when prompted
+wrangler secret put PROXY_KEY      # paste any random string when prompted
+wrangler deploy
+```
+
+`wrangler deploy` prints the worker's URL, something like
+`https://eduportal-github-proxy.<your-subdomain>.workers.dev`.
+
+## Point EduPortal at it
+
+In **Owner Console → Full Data Sync → "Route through a proxy instead of a
+direct token"**:
+- **Proxy URL**: the workers.dev URL from above
+- **Proxy key**: the same random string you set as `PROXY_KEY`
+
+Leave the main token/owner/repo fields as they are — owner/repo are still
+sent (in the request path), just not the token.
+
+## Token scope
+
+Whatever PAT you put in `GITHUB_TOKEN`, make it a **fine-grained token
+scoped to only this one repository's Contents (read and write)** — not a
+classic token with broad access. The worker only ever forwards to
+`https://api.github.com/repos/{owner}/{repo}/...`, so a narrowly-scoped
+token can't do anything outside that repo even if the worker itself were
+ever compromised.

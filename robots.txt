@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# The real sitemap is generated per-deployment from inside the app:
+# Owner Console → Search Setup → "Download combined sitemap.xml + robots.txt"
+# covers every discoverable school in one file. Replace this placeholder
+# line (and this file) with that download once you've registered schools.
+Sitemap: /sitemap.xml

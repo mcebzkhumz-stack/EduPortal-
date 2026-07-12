@@ -23,12 +23,16 @@
     <meta id="ogDescription" property="og:description"
         content="EduPortal — school management and learning portal for learners, teachers, administrators, and owners.">
     <meta id="ogUrl" property="og:url" content="">
+    <meta id="ogImage" property="og:image" content="">
+    <meta id="ogImageWidth" property="og:image:width" content="1200">
+    <meta id="ogImageHeight" property="og:image:height" content="630">
     <meta property="og:site_name" content="EduPortal">
     <meta property="og:locale" content="en_US">
     <meta name="twitter:card" content="summary_large_image">
     <meta id="twitterTitle" name="twitter:title" content="StudyMate — EduPortal Core">
     <meta id="twitterDescription" name="twitter:description"
         content="EduPortal — school management and learning portal for learners, teachers, administrators, and owners.">
+    <meta id="twitterImage" name="twitter:image" content="">
     <meta name="twitter:site" content="@eduportal">
     <meta name="theme-color" content="#1f6e5c">
     <meta name="application-name" content="EduPortal">
@@ -1481,6 +1485,37 @@
         .add-participant-invite-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
         .add-participant-invite-btn:disabled { background: #45564f; cursor: default; }
         .add-participant-empty { color: #9fb3ac; font-size: 12px; padding: 6px 0; }
+
+        /* ---------------- Printable report card ----------------
+           #reportCardPrintArea is off-screen/hidden in normal use and only
+           populated right before window.print() is called. The print media
+           query hides everything else on the page so only the report card
+           shows up on paper. */
+        #reportCardPrintArea { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #reportCardPrintArea, #reportCardPrintArea * { visibility: visible; }
+            #reportCardPrintArea { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+            .rc-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .rc-table th, .rc-table td { border: 1px solid #999; padding: 6px 8px; text-align: left; font-size: 12px; }
+        }
+        .rc-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1c2421; padding-bottom: 10px; margin-bottom: 14px; }
+        .rc-sign-row { display: flex; justify-content: space-between; margin-top: 60px; }
+        .rc-sign-line { border-top: 1px solid #333; width: 200px; text-align: center; font-size: 11px; padding-top: 4px; }
+
+        /* ---------------- Accessibility: text size & contrast ----------------
+           Purely a local display preference (stored in this browser's
+           localStorage, never synced as app data) — toggled from the small
+           a11y control near the topbar on every screen. */
+        body.a11y-large { font-size: 18px; }
+        body.a11y-large .btn, body.a11y-large input, body.a11y-large select, body.a11y-large textarea { font-size: 16px; }
+        body.a11y-contrast { --ink: #000000; --muted: #3a3a3a; --panel: #ffffff; --rule: #000000; --accent: #005c46; background: #ffffff; }
+        body.a11y-contrast .tag.good { background: #d7f2df; color: #063; border: 1px solid #063; }
+        body.a11y-contrast .tag.bad { background: #ffe0da; color: #7a1f0a; border: 1px solid #7a1f0a; }
+        .a11y-controls { position: fixed; right: 8px; bottom: 26px; z-index: 60; display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 3px; }
+        .a11y-controls button { width: 26px; height: 26px; border: none; background: none; cursor: pointer; font-size: 12px; border-radius: 4px; color: var(--ink); }
+        .a11y-controls button:hover { background: var(--rule); }
+        .a11y-controls button.active { background: var(--accent); color: #fff; }
     </style>
     <!-- Firebase (compat SDK) — used for cross-device shared storage when this
          page is hosted outside Claude.ai (e.g. on GitHub Pages). See the
@@ -1629,7 +1664,62 @@
         </div>
     </div>
 
+    <div id="buildInfoFooter"
+        style="position:fixed; right:8px; bottom:6px; z-index:50; font-size:10px; color:var(--muted); opacity:.55; pointer-events:none; font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;">
+    </div>
+
+    <div id="reportCardPrintArea"></div>
+
+    <div class="a11y-controls" id="a11yControls" title="Display options">
+        <button type="button" id="a11yFontDown" title="Smaller text">A-</button>
+        <button type="button" id="a11yFontUp" title="Larger text">A+</button>
+        <button type="button" id="a11yContrastBtn" title="High contrast">◐</button>
+    </div>
+
     <script>
+        /* ---------------- Build info ----------------
+           BUILD_SHA / BUILD_DATE are placeholders in this source file. The
+           GitHub Action in .github/workflows/deploy.yml replaces them with
+           the real commit sha and deploy timestamp during publish, so the
+           live site can show which version is actually running (see the
+           small build-info line rendered near the bottom of the page).
+           Left untouched, they just mean "this copy wasn't deployed by that
+           workflow" (e.g. opened straight from disk, or a different host). */
+        const BUILD_SHA = '__BUILD_SHA__';
+        const BUILD_DATE = '__BUILD_DATE__';
+        function buildInfoText() {
+            const isPlaceholder = BUILD_SHA.indexOf('__BUILD_SHA__') === 0;
+            if (isPlaceholder) return 'Dev build (not deployed via the GitHub Action)';
+            const shortSha = BUILD_SHA.slice(0, 7);
+            const dateTxt = BUILD_DATE && BUILD_DATE.indexOf('__BUILD_DATE__') !== 0 ? new Date(BUILD_DATE).toLocaleString() : '';
+            return `Build ${shortSha}${dateTxt ? ' · deployed ' + dateTxt : ''}`;
+        }
+
+        /* ---------------- Accessibility controls (text size / contrast) ----------------
+           Pure display preferences, kept in this browser's localStorage only
+           (never synced as app data — every device can set its own). Applies
+           a body class; the actual visual rules live in the <style> block. */
+        (function initA11yControls() {
+            const KEY = 'eduportal_a11y';
+            let prefs = { fontStep: 0, contrast: false };
+            try { const saved = JSON.parse(localStorage.getItem(KEY) || '{}'); prefs = { ...prefs, ...saved }; } catch (e) { }
+            function apply() {
+                document.body.classList.toggle('a11y-large', prefs.fontStep > 0);
+                document.body.classList.toggle('a11y-contrast', !!prefs.contrast);
+                const contrastBtn = document.getElementById('a11yContrastBtn');
+                if (contrastBtn) contrastBtn.classList.toggle('active', !!prefs.contrast);
+            }
+            function persist() { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { } }
+            document.addEventListener('DOMContentLoaded', () => {
+                apply();
+                const upBtn = document.getElementById('a11yFontUp');
+                const downBtn = document.getElementById('a11yFontDown');
+                const contrastBtn = document.getElementById('a11yContrastBtn');
+                if (upBtn) upBtn.onclick = () => { prefs.fontStep = 1; apply(); persist(); };
+                if (downBtn) downBtn.onclick = () => { prefs.fontStep = 0; apply(); persist(); };
+                if (contrastBtn) contrastBtn.onclick = () => { prefs.contrast = !prefs.contrast; apply(); persist(); };
+            });
+        })();
         /* ---------------- Firebase-backed storage bridge ----------------
            When this page runs inside Claude.ai, window.storage already exists
            and is used directly (see the "Cloud storage layer" block below).
@@ -1695,28 +1785,61 @@
                 const db = firebase.firestore();
                 const col = db.collection(FIREBASE_COLLECTION);
 
+                // Read-through cache: list() below fetches full documents anyway
+                // (Firestore has no "keys only" query), so it stashes each one's
+                // value here. get() then serves recent reads straight from
+                // memory instead of re-reading the same document from Firestore
+                // a second time a moment later — which is exactly what
+                // loadCloudCache()/pollCloudUpdates() do (list, then get() each
+                // key in a loop). CACHE_TTL_MS is short so a get() call made on
+                // its own (not right after a list()) still goes to Firestore
+                // rather than ever serving stale data.
+                const docCache = new Map(); // key -> { value, ts }
+                const CACHE_TTL_MS = 5000;
+
                 // Firestore doc IDs can't contain "/" — window.storage keys in
                 // this app never do (same rule the real window.storage enforces),
                 // so keys are used as doc IDs unmodified.
                 window.storage = {
                     async get(key) {
+                        const cached = docCache.get(key);
+                        if (cached && (Date.now() - cached.ts) < CACHE_TTL_MS) {
+                            return { key, value: cached.value, shared: true };
+                        }
                         const doc = await col.doc(key).get();
-                        if (!doc.exists) return null;
-                        return { key, value: doc.data().value, shared: true };
+                        if (!doc.exists) { docCache.delete(key); return null; }
+                        const value = doc.data().value;
+                        docCache.set(key, { value, ts: Date.now() });
+                        return { key, value, shared: true };
                     },
                     async set(key, value) {
                         await col.doc(key).set({ value, updatedAt: Date.now() });
+                        docCache.set(key, { value, ts: Date.now() });
                         return { key, value, shared: true };
                     },
                     async delete(key) {
                         await col.doc(key).delete();
+                        docCache.delete(key);
                         return { key, deleted: true, shared: true };
                     },
                     async list(prefix) {
-                        const snap = await col.get();
+                        // Scoped to a prefix (the common case — a single school's
+                        // namespace, or the owner namespace): range-query only the
+                        // matching documents via their ID, instead of pulling down
+                        // every document in the collection to filter client-side.
+                        // This is the difference between "cost proportional to one
+                        // school" and "cost proportional to the whole database, for
+                        // every user, every poll cycle" — the latter is what makes
+                        // this expensive/slow once more than a few people are using
+                        // the app at once.
+                        const fp = firebase.firestore.FieldPath.documentId();
+                        const snap = prefix
+                            ? await col.orderBy(fp).startAt(prefix).endAt(prefix + '\uf8ff').get()
+                            : await col.get(); // no prefix means "everything" is genuinely wanted (e.g. Owner Console)
                         const keys = [];
                         snap.forEach(d => {
-                            if (!prefix || d.id.indexOf(prefix) === 0) keys.push(d.id);
+                            keys.push(d.id);
+                            docCache.set(d.id, { value: d.data().value, ts: Date.now() });
                         });
                         return { keys, shared: true };
                     }
@@ -2019,18 +2142,45 @@
             }
             scheduleFullGithubSync('removed ' + key);
         }
+            // Every visitor used to trigger a full-database read here regardless
+            // of which school (if any) they were actually opening — fine for a
+            // handful of users, but it means read cost (and load time) grows
+            // with the size of the WHOLE database, for every single person, on
+            // every single page load. Almost nobody needs that: a school-link
+            // visitor only needs the owner namespace (small — the schools
+            // registry, for validating the link) plus that one school's own
+            // data. Only the Owner Console genuinely needs everything at once
+            // (cross-school broadcast, sitewide sitemap), so that's the only
+            // path that still loads the full collection.
+            function cloudLoadPrefixes() {
+                // Mirrors boot()'s own routing below: a ?school= link always
+                // wins over whatever appMode was last saved for this browser,
+                // so the prefix decision has to check the link first too.
+                const linkedSchoolId = schoolIdFromLink();
+                if (linkedSchoolId) return [OWNER_NS, schoolPrefix(linkedSchoolId)];
+                const restoredAppMode = NavDB.get('appMode', 'landing');
+                if (restoredAppMode === 'owner') return ['']; // Owner Console: needs everything, cross-school
+                if (restoredAppMode === 'school') {
+                    const activeSchoolId = NavDB.get('activeSchoolId', 'demo');
+                    return [OWNER_NS, schoolPrefix(activeSchoolId)];
+                }
+                return [OWNER_NS]; // bare landing page: just needs the schools registry to search
+            }
         async function loadCloudCache() {
             if (hasCloud) {
                 try {
-                    const listing = await retryCloud(() => window.storage.list('', true));
-                    const keys = (listing && listing.keys) ? listing.keys : [];
-                    // Read keys one at a time (rather than all in parallel) — same
-                    // reasoning as the write queue above: avoid bursting the backend.
-                    for (const k of keys) {
-                        try {
-                            const r = await retryCloud(() => window.storage.get(k, true));
-                            if (r) cloudCache[k] = r.value;
-                        } catch (e) { console.error('Cloud load failed for', k, e); }
+                    const prefixesToLoad = cloudLoadPrefixes();
+                    for (const prefix of prefixesToLoad) {
+                        const listing = await retryCloud(() => window.storage.list(prefix, true));
+                        const keys = (listing && listing.keys) ? listing.keys : [];
+                        // Read keys one at a time (rather than all in parallel) — same
+                        // reasoning as the write queue above: avoid bursting the backend.
+                        for (const k of keys) {
+                            try {
+                                const r = await retryCloud(() => window.storage.get(k, true));
+                                if (r) cloudCache[k] = r.value;
+                            } catch (e) { console.error('Cloud load failed for', k, e); }
+                        }
                     }
                 } catch (e) {
                     console.error('Initial cloud load failed', e);
@@ -2188,7 +2338,7 @@
            PRN0001, DPT0001, ADM0001, LIB0001…) assigned automatically the
            first time it's saved, and a passwordHash (SHA-256, set on that
            person's first sign-in) that gates entry into the school portal. */
-        const ROLE_PREFIX = { student: 'STU', teacher: 'TCH', principal: 'PRN', deputy: 'DPT', admin: 'ADM', librarian: 'LIB', it: 'ITM' };
+        const ROLE_PREFIX = { student: 'STU', teacher: 'TCH', principal: 'PRN', deputy: 'DPT', admin: 'ADM', librarian: 'LIB', it: 'ITM', parent: 'PAR' };
         function assignMissingUsernames(usersArr) {
             if (!Array.isArray(usersArr)) return;
             Object.keys(ROLE_PREFIX).forEach(role => {
@@ -2774,15 +2924,18 @@
                 schools = [{
                     id: 'demo', name: 'StudyMate Demo School', region: 'Manzini', address: '',
                     contactName: 'Mrs. Nkambule', contactPhone: '', contactEmail: '',
-                    type: 'High School', status: 'active', registeredAt: new Date().toISOString(), isDemo: true
+                    type: 'High School', status: 'active', registeredAt: new Date().toISOString(), isDemo: true,
+                    badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNTgiIGZpbGw9IiMxZjZlNWMiIHN0cm9rZT0iI2Y2ZjRlZSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Y2ZjRlZSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cmVjdCB4PSIzNiIgeT0iNDIiIHdpZHRoPSI0OCIgaGVpZ2h0PSIzNCIgcng9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Y2ZjRlZSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGxpbmUgeDE9IjYwIiB5MT0iNDIiIHgyPSI2MCIgeTI9Ijc2IiBzdHJva2U9IiNmNmY0ZWUiIHN0cm9rZS13aWR0aD0iMyIvPgogIDxwYXRoIGQ9Ik0zNiA0NiBDNDYgNDAgNTQgNDAgNjAgNDYgQzY2IDQwIDc0IDQwIDg0IDQ2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmNmY0ZWUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHRleHQgeD0iNjAiIHk9Ijk4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iR2VvcmdpYSwgJ1RpbWVzIE5ldyBSb21hbicsIHNlcmlmIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZjZmNGVlIiBsZXR0ZXItc3BhY2luZz0iMSI+U1RVRFlNQVRFPC90ZXh0Pgo8L3N2Zz4K',
                 }, {
                     id: 'uneswa-demo', name: 'University of Eswatini (UNESWA)', region: 'Kwaluseni', address: 'Kwaluseni Campus, Private Bag 4, Kwaluseni, Eswatini',
                     contactName: 'Prof. Justice M. Thwala (Vice-Chancellor)', contactPhone: '+268 2517 0000', contactEmail: '',
-                    type: 'Tertiary', status: 'active', registeredAt: new Date().toISOString(), isDemo: true
+                    type: 'Tertiary', status: 'active', registeredAt: new Date().toISOString(), isDemo: true,
+                    badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNTgiIGZpbGw9IiMwYjNkOTEiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cGF0aCBkPSJNNjAgMzQgTDg4IDQ2IEw2MCA1OCBMMzIgNDYgWiIgZmlsbD0iI2YwYjQyOSIvPgogIDxwYXRoIGQ9Ik00MCA1MCBWNzAgQzQwIDc4IDQ5IDg0IDYwIDg0IEM3MSA4NCA4MCA3OCA4MCA3MCBWNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8bGluZSB4MT0iODgiIHkxPSI0NiIgeDI9Ijg4IiB5Mj0iNjYiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI4OCIgY3k9IjcwIiByPSIzLjIiIGZpbGw9IiNmMGI0MjkiLz4KICA8dGV4dCB4PSI2MCIgeT0iMTAyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iR2VvcmdpYSwgJ1RpbWVzIE5ldyBSb21hbicsIHNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZjBiNDI5IiBsZXR0ZXItc3BhY2luZz0iMSI+VU5FU1dBPC90ZXh0Pgo8L3N2Zz4K',
                 }, {
                     id: 'salesian-demo', name: 'Salesian High School', region: 'Manzini', address: 'Sandlane Street, Manzini, Eswatini',
                     contactName: "Principal's Office", contactPhone: '+268 2505 6859', contactEmail: '',
-                    type: 'High School', status: 'active', registeredAt: new Date().toISOString(), isDemo: true
+                    type: 'High School', status: 'active', registeredAt: new Date().toISOString(), isDemo: true,
+                    badge: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNTgiIGZpbGw9IiM3YTFmMmIiIHN0cm9rZT0iI2YwZDlhOCIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwZDlhOCIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cGF0aCBkPSJNNjAgMzIgVjg4IE00MCA0NCBIODAiIHN0cm9rZT0iI2YwZDlhOCIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNNjAgMzIgQzUwIDQwIDUwIDQ4IDYwIDU2IEM3MCA0OCA3MCA0MCA2MCAzMiBaIiBmaWxsPSIjZjBkOWE4Ii8+CiAgPHRleHQgeD0iNjAiIHk9IjEwMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsICdUaW1lcyBOZXcgUm9tYW4nLCBzZXJpZiIgZm9udC1zaXplPSIxMS41IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZjBkOWE4IiBsZXR0ZXItc3BhY2luZz0iMC41Ij5TQUxFU0lBTjwvdGV4dD4KPC9zdmc+Cg==',
                 }];
                 OwnerDB.set('schools', schools);
             }
@@ -2799,6 +2952,21 @@
                     changed = true;
                 }
             });
+            // One-time backfill: give the demo schools their badges if this
+            // install's schools array predates them. Gated behind a flag
+            // (rather than "badge is empty") so it doesn't keep reappearing
+            // if the Owner deliberately removes a badge later.
+            if (!OwnerDB.get('demoBadgesSeeded', false)) {
+                const demoBadges = {
+                    'demo': 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNTgiIGZpbGw9IiMxZjZlNWMiIHN0cm9rZT0iI2Y2ZjRlZSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Y2ZjRlZSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cmVjdCB4PSIzNiIgeT0iNDIiIHdpZHRoPSI0OCIgaGVpZ2h0PSIzNCIgcng9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Y2ZjRlZSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGxpbmUgeDE9IjYwIiB5MT0iNDIiIHgyPSI2MCIgeTI9Ijc2IiBzdHJva2U9IiNmNmY0ZWUiIHN0cm9rZS13aWR0aD0iMyIvPgogIDxwYXRoIGQ9Ik0zNiA0NiBDNDYgNDAgNTQgNDAgNjAgNDYgQzY2IDQwIDc0IDQwIDg0IDQ2IiBmaWxsPSJub25lIiBzdHJva2U9IiNmNmY0ZWUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHRleHQgeD0iNjAiIHk9Ijk4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iR2VvcmdpYSwgJ1RpbWVzIE5ldyBSb21hbicsIHNlcmlmIiBmb250LXNpemU9IjEyIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZjZmNGVlIiBsZXR0ZXItc3BhY2luZz0iMSI+U1RVRFlNQVRFPC90ZXh0Pgo8L3N2Zz4K',
+                    'uneswa-demo': 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNTgiIGZpbGw9IiMwYjNkOTEiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cGF0aCBkPSJNNjAgMzQgTDg4IDQ2IEw2MCA1OCBMMzIgNDYgWiIgZmlsbD0iI2YwYjQyOSIvPgogIDxwYXRoIGQ9Ik00MCA1MCBWNzAgQzQwIDc4IDQ5IDg0IDYwIDg0IEM3MSA4NCA4MCA3OCA4MCA3MCBWNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8bGluZSB4MT0iODgiIHkxPSI0NiIgeDI9Ijg4IiB5Mj0iNjYiIHN0cm9rZT0iI2YwYjQyOSIgc3Ryb2tlLXdpZHRoPSIzIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSI4OCIgY3k9IjcwIiByPSIzLjIiIGZpbGw9IiNmMGI0MjkiLz4KICA8dGV4dCB4PSI2MCIgeT0iMTAyIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iR2VvcmdpYSwgJ1RpbWVzIE5ldyBSb21hbicsIHNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZjBiNDI5IiBsZXR0ZXItc3BhY2luZz0iMSI+VU5FU1dBPC90ZXh0Pgo8L3N2Zz4K',
+                    'salesian-demo': 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCI+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNTgiIGZpbGw9IiM3YTFmMmIiIHN0cm9rZT0iI2YwZDlhOCIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI2MCIgcj0iNDgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2YwZDlhOCIgc3Ryb2tlLXdpZHRoPSIxLjUiLz4KICA8cGF0aCBkPSJNNjAgMzIgVjg4IE00MCA0NCBIODAiIHN0cm9rZT0iI2YwZDlhOCIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNNjAgMzIgQzUwIDQwIDUwIDQ4IDYwIDU2IEM3MCA0OCA3MCA0MCA2MCAzMiBaIiBmaWxsPSIjZjBkOWE4Ii8+CiAgPHRleHQgeD0iNjAiIHk9IjEwMiIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsICdUaW1lcyBOZXcgUm9tYW4nLCBzZXJpZiIgZm9udC1zaXplPSIxMS41IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZjBkOWE4IiBsZXR0ZXItc3BhY2luZz0iMC41Ij5TQUxFU0lBTjwvdGV4dD4KPC9zdmc+Cg==',
+                };
+                schools.forEach(s => {
+                    if (demoBadges[s.id] && !s.badge) { s.badge = demoBadges[s.id]; changed = true; }
+                });
+                OwnerDB.set('demoBadgesSeeded', true);
+            }
             if (changed) OwnerDB.set('schools', schools);
             return schools;
         }
@@ -2841,6 +3009,35 @@
         function schoolsRegistryPayload() {
             return getSchools().map(s => ({ id: s.id, name: s.name, schoolEmail: s.schoolEmail || '', region: s.region || '', type: s.type || '', status: s.status || 'active', registeredAt: s.registeredAt || '' }));
         }
+        /* A second, dedicated file with just the school emails — separate
+           from the full registry above so "did every school's email make it
+           into the repo?" is a one-glance answer rather than something you
+           have to dig for inside the bigger JSON. Uses the same
+           token/owner/repo/branch as the registry; only the file path
+           differs (default 'eduportal-school-emails.json', editable below). */
+        function schoolEmailsPayload() {
+            return getSchools().filter(s => s.schoolEmail).map(s => ({ school: s.name, email: s.schoolEmail }));
+        }
+        async function githubGetEmailsFile() {
+            const cfg = getGithubConfig();
+            const path = cfg.emailsPath || 'eduportal-school-emails.json';
+            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path}?ref=${encodeURIComponent(cfg.branch || 'main')}`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' } });
+            if (res.status === 404) return { sha: null };
+            if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
+            const data = await res.json();
+            return { sha: data.sha };
+        }
+        async function githubPutEmailsFile(payload, sha, message) {
+            const cfg = getGithubConfig();
+            const path = cfg.emailsPath || 'eduportal-school-emails.json';
+            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path}`;
+            const body = { message: message || 'EduPortal: sync school emails', content: b64EncodeUtf8(JSON.stringify(payload, null, 2)), branch: cfg.branch || 'main' };
+            if (sha) body.sha = sha;
+            const res = await fetch(url, { method: 'PUT', headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub write failed (${res.status}): ${t.slice(0, 200)}`); }
+            return res.json();
+        }
         /* Best-effort background push — called after ANY change the Owner
            makes that touches the school registry (register, edit, suspend/
            activate, delete). Auto-syncs on every such change so the GitHub
@@ -2858,6 +3055,13 @@
                 const result = await githubPutSchoolsFile(schoolsRegistryPayload(), sha, commitMsg);
                 const commitSha = result && result.commit && result.commit.sha;
                 const commitUrl = result && result.commit && result.commit.html_url;
+                let emailsError = '';
+                try {
+                    const { sha: emailsSha } = await githubGetEmailsFile();
+                    await githubPutEmailsFile(schoolEmailsPayload(), emailsSha, reason ? `EduPortal: ${reason} (emails)` : 'EduPortal: sync school emails');
+                } catch (emailErr) {
+                    emailsError = String((emailErr && emailErr.message) || emailErr);
+                }
                 saveGithubConfig({
                     ...getGithubConfig(),
                     lastSyncAt: new Date().toISOString(),
@@ -2865,6 +3069,8 @@
                     lastSyncReason: reason || '',
                     lastSyncCommitSha: commitSha || '',
                     lastSyncCommitUrl: commitUrl || '',
+                    lastEmailsSyncAt: emailsError ? getGithubConfig().lastEmailsSyncAt : new Date().toISOString(),
+                    lastEmailsSyncError: emailsError,
                 });
             } catch (err) {
                 saveGithubConfig({ ...getGithubConfig(), lastSyncError: String((err && err.message) || err) });
@@ -2892,33 +3098,100 @@
         const FULL_SYNC_DEBOUNCE_MS = 4000;
         const FULL_SYNC_MAX_WAIT_MS = 20000;
         let fullSyncBusy = false;
+        let fullRestoreBusy = false;
         let fullSyncTimer = null;
         let fullSyncFirstPendingAt = 0;
         let fullSyncPendingReason = '';
         function githubFullSyncConfigured() {
             const c = getGithubConfig();
-            return !!(c.token && c.owner && c.repo && c.fullSyncEnabled && (c.fullPath || 'eduportal-full-backup.json'));
+            const hasAuth = c.proxyUrl ? true : !!c.token;
+            return !!(hasAuth && c.owner && c.repo && c.fullSyncEnabled && (c.fullPath || 'eduportal-data'));
+        }
+        function fullBackupFolder() {
+            const c = getGithubConfig();
+            return (c.fullPath || 'eduportal-data').replace(/\/+$/, '').replace(/\.json$/i, '');
         }
         /* The simple Contents API used by the schools-registry sync above is
            capped at 1MB per file (both read and write), which the full
            database backup can easily outgrow. This uses the Git Data API
-           instead — create a blob, graft it into a new tree, commit that
+           instead — create blobs, graft them into a new tree, commit that
            tree, then move the branch ref to the new commit — which supports
-           blobs up to 100MB, well past anything this app will produce. */
+           blobs up to 100MB each, well past anything this app will produce.
+           If a proxyUrl is configured (see the "Route through a proxy"
+           field in the panel), requests go there instead of straight to
+           api.github.com with the token attached client-side — for anyone
+           who's stood up the example Cloudflare Worker in this repo's
+           /proxy folder so the real token never sits in the browser. */
         async function githubApiRequest(method, path, body) {
             const cfg = getGithubConfig();
-            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/${path}`;
-            const res = await fetch(url, {
-                method,
-                headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-                body: body ? JSON.stringify(body) : undefined,
-            });
+            let url, headers;
+            if (cfg.proxyUrl) {
+                url = cfg.proxyUrl.replace(/\/+$/, '') + '/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) + '/' + path;
+                headers = { Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+                if (cfg.proxyKey) headers['X-Proxy-Key'] = cfg.proxyKey;
+            } else {
+                url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/${path}`;
+                headers = { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+            }
+            const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
             if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub ${method} ${path} failed (${res.status}): ${t.slice(0, 200)}`); }
+            if (res.status === 204) return null;
             return res.json();
         }
-        async function githubPutFullBackupFile(payload, message) {
+        /* Every storage key belongs to exactly one bucket: the Owner's own
+           records, one specific school, or (for anything unrecognized) a
+           catch-all. Splitting the backup this way means one school's
+           changes only touch that school's file — readable diffs, and a
+           busy school doesn't force a re-commit of every other school's
+           data on every change. */
+        function keyToBucket(key) {
+            if (key.indexOf(OWNER_NS) === 0) return 'owner';
+            const schools = getSchools();
+            let best = null;
+            schools.forEach(s => {
+                if (s.id === 'demo') return;
+                const p = schoolPrefix(s.id);
+                if (key.indexOf(p) === 0 && (!best || p.length > schoolPrefix(best).length)) best = s.id;
+            });
+            if (best) return best;
+            if (key.indexOf('studymate_') === 0) return 'demo';
+            return 'other';
+        }
+        function bucketFilePath(folder, bucket) {
+            if (bucket === 'owner') return `${folder}/owner.json`;
+            if (bucket === 'other') return `${folder}/other.json`;
+            return `${folder}/school-${bucket}.json`;
+        }
+        function partitionCloudCache() {
+            const buckets = {};
+            Object.keys(cloudCache).forEach(key => {
+                const bucket = keyToBucket(key);
+                if (!buckets[bucket]) buckets[bucket] = {};
+                buckets[bucket][key] = cloudCache[key];
+            });
+            return buckets;
+        }
+        /* One combined snapshot, used only for the "Download backup" button —
+           a plain local file, no GitHub involved. The actual GitHub push
+           uses partitionCloudCache() below instead, one file per bucket. */
+        function fullDataPayload() {
+            return { app: 'EduPortal', exportedAt: new Date().toISOString(), schoolCount: getSchools().length, data: cloudCache };
+        }
+        function downloadFullBackupLocally() {
+            const blob = new Blob([JSON.stringify(fullDataPayload(), null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `eduportal-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+        async function githubPutFullBackupFolder(message, attempt) {
+            attempt = attempt || 1;
             const cfg = getGithubConfig();
-            const path = cfg.fullPath || 'eduportal-full-backup.json';
+            const folder = fullBackupFolder();
             const branch = cfg.branch || 'main';
             let ref;
             try {
@@ -2929,21 +3202,56 @@
             const parentCommitSha = ref.object.sha;
             const parentCommit = await githubApiRequest('GET', `git/commits/${parentCommitSha}`);
             const baseTreeSha = parentCommit.tree.sha;
-            const content = JSON.stringify(payload, null, 2);
-            const blob = await githubApiRequest('POST', 'git/blobs', { content: b64EncodeUtf8(content), encoding: 'base64' });
-            const tree = await githubApiRequest('POST', 'git/trees', { base_tree: baseTreeSha, tree: [{ path, mode: '100644', type: 'blob', sha: blob.sha }] });
+            const buckets = partitionCloudCache();
+            const entries = [];
+            for (const bucket of Object.keys(buckets)) {
+                const content = JSON.stringify(buckets[bucket], null, 2);
+                const blob = await githubApiRequest('POST', 'git/blobs', { content: b64EncodeUtf8(content), encoding: 'base64' });
+                entries.push({ path: bucketFilePath(folder, bucket), mode: '100644', type: 'blob', sha: blob.sha });
+            }
+            const indexContent = JSON.stringify({ app: 'EduPortal', exportedAt: new Date().toISOString(), files: entries.map(e => e.path) }, null, 2);
+            const indexBlob = await githubApiRequest('POST', 'git/blobs', { content: b64EncodeUtf8(indexContent), encoding: 'base64' });
+            entries.push({ path: `${folder}/index.json`, mode: '100644', type: 'blob', sha: indexBlob.sha });
+            const tree = await githubApiRequest('POST', 'git/trees', { base_tree: baseTreeSha, tree: entries });
             const commit = await githubApiRequest('POST', 'git/commits', { message: message || 'EduPortal: full data sync', tree: tree.sha, parents: [parentCommitSha] });
-            await githubApiRequest('PATCH', `git/refs/${encodeURIComponent('heads/' + branch)}`, { sha: commit.sha });
-            return { commit: { sha: commit.sha, html_url: `https://github.com/${cfg.owner}/${cfg.repo}/commit/${commit.sha}` } };
+            try {
+                await githubApiRequest('PATCH', `git/refs/${encodeURIComponent('heads/' + branch)}`, { sha: commit.sha });
+            } catch (err) {
+                // Someone else (most likely another open tab's auto-sync) moved
+                // the branch between our ref read and this update. Rebuild the
+                // commit on top of whatever's there now instead of failing.
+                if (attempt < 3) return githubPutFullBackupFolder(message, attempt + 1);
+                throw new Error(`GitHub branch moved while pushing, and retries were exhausted (${(err && err.message) || err}).`);
+            }
+            return { commit: { sha: commit.sha, html_url: `https://github.com/${cfg.owner}/${cfg.repo}/commit/${commit.sha}` }, folder, fileCount: entries.length };
         }
-        function fullDataPayload() {
-            return { app: 'EduPortal', exportedAt: new Date().toISOString(), schoolCount: getSchools().length, data: cloudCache };
+        /* Reads every file back out of the backup folder and writes it into
+           this browser's storage — for restoring a browser that lost its
+           local data, or setting up a fresh device from what's in the repo.
+           Overwrites local data for any key present in the backup. */
+        async function githubPullFullBackupFolder() {
+            const cfg = getGithubConfig();
+            const folder = fullBackupFolder();
+            const branch = cfg.branch || 'main';
+            const ref = await githubApiRequest('GET', `git/ref/${encodeURIComponent('heads/' + branch)}`);
+            const commit = await githubApiRequest('GET', `git/commits/${ref.object.sha}`);
+            const tree = await githubApiRequest('GET', `git/trees/${commit.tree.sha}?recursive=1`);
+            const files = (tree.tree || []).filter(t => t.type === 'blob' && t.path.indexOf(folder + '/') === 0 && t.path.endsWith('.json') && !/\/index\.json$/.test(t.path));
+            if (!files.length) throw new Error(`No backup files found under "${folder}/" on branch "${branch}". Push a full backup first.`);
+            let keyCount = 0;
+            for (const f of files) {
+                const blobData = await githubApiRequest('GET', `git/blobs/${f.sha}`);
+                const obj = JSON.parse(b64DecodeUtf8(blobData.content || ''));
+                Object.keys(obj).forEach((key) => { lsSet(key, obj[key]); keyCount += 1; });
+            }
+            return { fileCount: files.length, keyCount };
         }
         /* Called from lsSet()/lsRemove() on every single storage write in the
            app. Debounces with a max-wait cap so continuous activity doesn't
            delay the push forever. */
         function scheduleFullGithubSync(reason) {
             if (!githubFullSyncConfigured()) return;
+            if (fullRestoreBusy) return; // a restore is actively writing keys — don't sync those writes back out mid-restore
             fullSyncPendingReason = reason || fullSyncPendingReason || 'data change';
             const now = Date.now();
             if (!fullSyncFirstPendingAt) fullSyncFirstPendingAt = now;
@@ -2963,7 +3271,7 @@
             if (appMode === 'owner') renderOwner();
             try {
                 const commitMsg = `EduPortal: full sync — ${reason || 'data change'}`;
-                const result = await githubPutFullBackupFile(fullDataPayload(), commitMsg);
+                const result = await githubPutFullBackupFolder(commitMsg);
                 const commitSha = result && result.commit && result.commit.sha;
                 const commitUrl = result && result.commit && result.commit.html_url;
                 saveGithubConfig({
@@ -2973,6 +3281,7 @@
                     lastFullSyncReason: reason || '',
                     lastFullSyncCommitSha: commitSha || '',
                     lastFullSyncCommitUrl: commitUrl || '',
+                    lastFullSyncFileCount: (result && result.fileCount) || 0,
                 });
             } catch (err) {
                 saveGithubConfig({ ...getGithubConfig(), lastFullSyncError: String((err && err.message) || err) });
@@ -2980,6 +3289,23 @@
             fullSyncBusy = false;
             if (appMode === 'owner') renderOwner();
         }
+        async function runFullGithubRestore() {
+            if (!githubFullSyncConfigured()) return;
+            fullRestoreBusy = true;
+            if (appMode === 'owner') renderOwner();
+            let result = null, error = '';
+            try {
+                result = await githubPullFullBackupFolder();
+                saveGithubConfig({ ...getGithubConfig(), lastFullRestoreAt: new Date().toISOString(), lastFullRestoreError: '' });
+            } catch (err) {
+                error = String((err && err.message) || err);
+                saveGithubConfig({ ...getGithubConfig(), lastFullRestoreError: error });
+            }
+            fullRestoreBusy = false;
+            if (appMode === 'owner') renderOwner();
+            return { result, error };
+        }
+
 
         /* Pulls the GitHub file and "recognizes" any school name/email in it
            that isn't already in the local registry, adding it as a new
@@ -3285,6 +3611,13 @@
            schools) — that stays exclusive to ownerAccess. */
         function hasFullAccess() { return ownerAccess || (authedUser && authedUser.role === 'it'); }
         let loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
+        /* Which public, no-login-required view is showing on the login gate for
+           a Tertiary school: null (the sign-in form itself), 'apply' (the public
+           admission application form), or 'faculties' (the Faculties & Institutes
+           directory). Reset whenever the visitor leaves this school's login gate,
+           so it never lingers into a different school or into a signed-in view. */
+        let preLoginPublicView = null;
+        let applyFormStatus = '';
 
         function enterSchool(id, opts) {
             seedSchoolIfNeeded(id);
@@ -3296,6 +3629,8 @@
             NavDB.set('ownerAccess', ownerAccess);
             authedUser = null;
             loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
+            preLoginPublicView = null;
+            applyFormStatus = '';
             if (ownerAccess) {
                 const usersInSchool = DB.get('users', []);
                 const usersArr = Array.isArray(usersInSchool) ? usersInSchool : [];
@@ -3317,6 +3652,8 @@
             if (typeof endCallLocal === 'function' && callState && callState.phase !== 'idle') { try { hangupCall(); } catch (e) { } }
             authedUser = null;
             loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
+            preLoginPublicView = null;
+            applyFormStatus = '';
             showView();
         }
         function backToLanding() {
@@ -3326,6 +3663,8 @@
             NavDB.set('ownerAccess', false);
             authedUser = null;
             landingIntendedRole = null;
+            preLoginPublicView = null;
+            applyFormStatus = '';
             showView();
         }
         function showView() {
@@ -3470,9 +3809,18 @@
            anywhere different from ordinary staff sign-in.
            NOTE: this is a client-side, static-HTML app with no real backend
            auth — this check happens in the browser, so it deters casual
-           access but is not a substitute for real server-side auth (anyone
-           reading the page source could find these addresses or code path). */
-        const OWNER_ALLOWED_EMAILS = ['mcebzkhumz@gmail.com', 'khumalomzwa06@gmail.com'];
+           access but is not a substitute for real server-side auth. Unlike
+           before, the actual addresses are never shipped in this file —
+           only their SHA-256 hashes are, below — so viewing page source (or
+           this file's public GitHub repo, once hosted for search-engine
+           discoverability) does not reveal your real email addresses.
+           To change/add an owner email: open this file in a browser console
+           and run  await sha256Hex('the-email@example.com')  (lowercased,
+           trimmed) and paste the resulting hex string into the array below. */
+        const OWNER_ALLOWED_EMAIL_HASHES = [
+            '31f252bc1225078d74c371139a951cfa58b8e0ddc5c7b25bc0a446b00004e487', // sha256 of first owner email
+            '29dd24d260780074418da9772dd7aca85d62c063ddd8b2fbe1c129e1eaaf976f'  // sha256 of second owner email
+        ];
         function openOwnerAuthModal() {
             const overlay = document.getElementById('ownerPwModalOverlay');
             overlay.style.display = 'flex';
@@ -3491,10 +3839,11 @@
       </div>`;
             document.getElementById('ownerGateCancel').addEventListener('click', closeOwnerAuthModal);
             overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOwnerAuthModal(); });
-            document.getElementById('ownerEmailGateForm').addEventListener('submit', (e) => {
+            document.getElementById('ownerEmailGateForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const email = document.getElementById('ownerGateEmail').value.trim().toLowerCase();
-                if (!OWNER_ALLOWED_EMAILS.includes(email)) {
+                const emailHash = await sha256Hex(email);
+                if (!OWNER_ALLOWED_EMAIL_HASHES.includes(emailHash)) {
                     const errEl = document.getElementById('ownerGateError');
                     errEl.textContent = 'No staff account found for this email.';
                     errEl.style.display = '';
@@ -3646,6 +3995,32 @@
         }
 
         function renderLoginGate() {
+            if (isTertiary() && preLoginPublicView === 'apply') { renderApplyForm(); return; }
+            if (isTertiary() && preLoginPublicView === 'faculties') { renderFacultiesDirectory(); return; }
+            renderSignInForm();
+        }
+        /* Small link row offered under the sign-in form, and used the same way
+           atop the two public sub-views below, so a visitor can move between
+           "sign in" / "apply" / "browse faculties" without ever leaving the
+           login gate or needing an account. Tertiary schools only — a regular
+           K-12 school has no public application process to expose here. */
+        function tertiaryPublicNavLinks(active) {
+            if (!isTertiary()) return '';
+            const link = (view, label) => active === view
+                ? `<span class="muted" style="font-size:12px;">${label}</span>`
+                : `<a href="#" data-prelogin-view="${view}" style="font-size:12px;">${label}</a>`;
+            return `<p class="login-hint" style="text-align:center; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+        ${link('signin', 'Sign In')} · ${link('apply', 'Apply for Admission')} · ${link('faculties', 'Faculties & Institutes')}
+      </p>`;
+        }
+        function wireTertiaryPublicNavLinks(container) {
+            container.querySelectorAll('[data-prelogin-view]').forEach(a => a.addEventListener('click', (e) => {
+                e.preventDefault();
+                preLoginPublicView = a.dataset.preloginView === 'signin' ? null : a.dataset.preloginView;
+                renderLoginGate();
+            }));
+        }
+        function renderSignInForm() {
             const gate = document.getElementById('loginGateView');
             const meta = getSchools().find(s => s.id === currentSchoolId);
             const schoolName = meta ? meta.name : 'EduPortal';
@@ -3671,9 +4046,11 @@
           </form>
           <p class="login-hint" style="text-align:center;">Don't know your username? Ask your school administrator.</p>
           <p class="login-hint" style="text-align:center;">No password on your account yet? Just sign in with your username \u2014 you can set a password from inside the portal any time.</p>
+          ${tertiaryPublicNavLinks('signin')}
           ${!schoolIdFromLink() ? `<p class="login-hint" style="text-align:center;"><a href="#" id="notYourSchoolLink">Not your school?</a></p>` : ''}
         </div>`;
             wirePwEyeButtons(gate);
+            wireTertiaryPublicNavLinks(gate);
             const notYourSchoolLink = document.getElementById('notYourSchoolLink');
             if (notYourSchoolLink) notYourSchoolLink.addEventListener('click', (e) => { e.preventDefault(); backToLanding(); });
             document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -3704,6 +4081,101 @@
                 loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
                 showView();
             });
+        }
+        /* ---------------- Public "Apply Now" admission application ----------------
+           Reachable from the login gate without any account, for Tertiary schools
+           only. Submissions land in getApplications() for the Registrar to review
+           (render_admin_applications below); approving one creates the student's
+           real account, same as any other admitted student. */
+        function renderApplyForm() {
+            const gate = document.getElementById('loginGateView');
+            const meta = getSchools().find(s => s.id === currentSchoolId);
+            const schoolName = meta ? meta.name : 'EduPortal';
+            const programmes = getProgrammes();
+            gate.innerHTML = `
+        <div class="login-card" style="max-width:420px;">
+          <div class="brand" style="justify-content:center; margin-bottom:6px;">
+            <span class="mark">EP</span>
+            <h1 style="font-size:17px; margin:0;">${schoolName}</h1>
+          </div>
+          <p class="muted" style="text-align:center; margin:6px 0 0;">Apply for Admission</p>
+          ${tertiaryPublicNavLinks('apply')}
+          <div style="display:flex; flex-direction:column; gap:10px; margin-top:6px;">
+            <div><label>Full name</label><input type="text" id="apName" placeholder="Full name"></div>
+            <div><label>Email</label><input type="email" id="apEmail" placeholder="you@example.com"></div>
+            <div><label>Phone</label><input type="text" id="apPhone" placeholder="e.g. 7612 3456"></div>
+            <div><label>Programme applying for</label>
+              <select class="field" id="apProgramme">
+                ${programmes.length ? programmes.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.faculty ? ' — ' + escapeHtml(p.faculty) : ''}</option>`).join('') : '<option value="">No programmes published yet</option>'}
+              </select>
+            </div>
+            <div><label>Previous school / institution</label><input type="text" id="apPrevSchool" placeholder="e.g. Salesian High School"></div>
+            <div><label>Personal statement (optional)</label><textarea id="apStatement" rows="3" placeholder="Briefly, why this programme?"></textarea></div>
+          </div>
+          ${applyFormStatus ? `<p class="login-hint" style="text-align:center; color:var(--accent);">${escapeHtml(applyFormStatus)}</p>` : ''}
+          <button class="btn" id="apSubmit" style="width:100%; margin-top:16px;">Submit Application</button>
+        </div>`;
+            wireTertiaryPublicNavLinks(gate);
+            gate.querySelector('#apSubmit').onclick = () => {
+                const name = gate.querySelector('#apName').value.trim();
+                const email = gate.querySelector('#apEmail').value.trim();
+                const phone = gate.querySelector('#apPhone').value.trim();
+                const programmeId = gate.querySelector('#apProgramme').value;
+                if (!name || !email || !programmeId) {
+                    applyFormStatus = 'Please fill in your name, email, and choose a programme.';
+                    renderApplyForm();
+                    return;
+                }
+                const applications = getApplications();
+                applications.push({
+                    id: uid('app'), name, email, phone, programmeId,
+                    previousSchool: gate.querySelector('#apPrevSchool').value.trim(),
+                    statement: gate.querySelector('#apStatement').value.trim(),
+                    status: 'Pending', submittedAt: new Date().toISOString(),
+                });
+                saveApplications(applications);
+                applyFormStatus = `Application submitted \u2014 the Registrar's Office will be in touch at ${email}.`;
+                renderApplyForm();
+            };
+        }
+        /* ---------------- Public Faculties & Institutes directory ----------------
+           Read-only, reachable from the login gate without any account. Groups
+           the school's published programmes (getProgrammes) by faculty, mirroring
+           the "Faculties and Institutes" section of a real university's site. */
+        function renderFacultiesDirectory() {
+            const gate = document.getElementById('loginGateView');
+            const meta = getSchools().find(s => s.id === currentSchoolId);
+            const schoolName = meta ? meta.name : 'EduPortal';
+            const programmes = getProgrammes();
+            const byFaculty = {};
+            programmes.forEach(p => {
+                const f = p.faculty || 'Other Programmes';
+                (byFaculty[f] = byFaculty[f] || []).push(p);
+            });
+            const faculties = Object.keys(byFaculty).sort();
+            gate.innerHTML = `
+        <div class="login-card" style="max-width:460px;">
+          <div class="brand" style="justify-content:center; margin-bottom:6px;">
+            <span class="mark">EP</span>
+            <h1 style="font-size:17px; margin:0;">${schoolName}</h1>
+          </div>
+          <p class="muted" style="text-align:center; margin:6px 0 0;">Faculties & Institutes</p>
+          ${tertiaryPublicNavLinks('faculties')}
+          ${faculties.length === 0 ? '<div class="empty">No programmes published yet.</div>' : faculties.map(f => `
+            <div class="panel" style="margin-top:10px;">
+              <div class="eyebrow">${escapeHtml(f)}</div>
+              <table><tbody>
+                ${byFaculty[f].map(p => `<tr>
+                  <td>
+                    <div style="font-weight:600;">${escapeHtml(p.name)}</div>
+                    <div class="muted" style="font-size:12px;">${escapeHtml(p.department || '')}${p.campus ? ' · ' + escapeHtml(p.campus) : ''}</div>
+                  </td>
+                  <td class="muted" style="font-size:12px; text-align:right; white-space:nowrap;">${escapeHtml(p.degreeType || '')}${p.durationYears ? ' · ' + p.durationYears + ' yrs' : ''}</td>
+                </tr>`).join('')}
+              </tbody></table>
+            </div>`).join('')}
+        </div>`;
+            wireTertiaryPublicNavLinks(gate);
         }
 
         /* ---------------- In-portal Set/Change Password modal ----------------
@@ -3844,6 +4316,18 @@
         function saveResultBatches(b) { return DB.set('resultBatches', b); }
         function getFeeAccounts() { return arr(DB.get('feeAccounts', [])); }
         function saveFeeAccounts(f) { return DB.set('feeAccounts', f); }
+        /* Prospective-student applications, submitted from the public "Apply Now"
+           form on a Tertiary school's login gate (no account needed to apply) and
+           reviewed by the Registrar, who can approve (creating the student's real
+           account) or reject. Separate from `admissions` (the Principal/Dean's
+           general admission register, used school-wide) and from `registrations`
+           (already-enrolled students registering for modules each semester). */
+        function getApplications() { return arr(DB.get('applications', [])); }
+        function saveApplications(a) { return DB.set('applications', a); }
+        /* Student Services requests (bursary/financial aid, accommodation, health,
+           counselling) submitted by students and handled by the Registrar's Office. */
+        function getServiceRequests() { return arr(DB.get('serviceRequests', [])); }
+        function saveServiceRequests(r) { return DB.set('serviceRequests', r); }
 
         function defaultAcademicCalendar() {
             const y = new Date().getFullYear();
@@ -3956,6 +4440,10 @@
                 if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
                 return new Date(b.postedAt) - new Date(a.postedAt);
             });
+            if (user.role === 'parent') {
+                const childClasses = new Set(childrenFor(user).map(c => c.class).filter(Boolean));
+                return all.filter(a => a.audience === 'School-wide' || childClasses.has(a.audience));
+            }
             if (user.role !== 'student') return all;
             return all.filter(a => a.audience === 'School-wide' || (hasFullAccess() || a.audience === user.class));
         }
@@ -4099,8 +4587,9 @@
                merged in automatically by computeNav() below, since IT always
                has full-access status — see hasFullAccess(). */
             it: [['overview', 'IT Overview'], ['accounts', 'Account Management'], ['contactOwner', 'Contact Owner Console'], ['announcements', 'Announcements'], ['calendar', 'Calendar'], ['duties', 'Role Duties'], ['calls', 'Video & Audio Calls']],
+            parent: [['overview', 'My Children'], ['attendance', 'Attendance'], ['grades', 'Grades'], ['fees', 'Fees'], ['announcements', 'Announcements'], ['calendar', 'Calendar'], ['duties', 'Role Duties']],
         };
-        const ROLE_LABEL = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy Head', admin: 'School Administrator', librarian: 'Librarian', it: 'IT Management' };
+        const ROLE_LABEL = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy Head', admin: 'School Administrator', librarian: 'Librarian', it: 'IT Management', parent: 'Parent / Guardian' };
 
         /* Top-left role tabs — order, display label */
         const ROLE_TABS = [
@@ -4111,6 +4600,7 @@
             ['admin', 'Administration'],
             ['librarian', 'Librarian'],
             ['it', 'IT Management'],
+            ['parent', 'Parent / Guardian'],
         ];
 
         /* ---- Tertiary Academic Suite: nav/label overrides ----
@@ -4120,10 +4610,10 @@
            Dean, Administration → Registrar) without touching the underlying
            role keys, so nothing else in the app has to know the difference. */
         const TERTIARY_NAV_EXTRA = {
-            student: [['registration', 'Module Registration'], ['transcript', 'Transcript & GPA'], ['audit', 'Degree Audit']],
+            student: [['registration', 'Module Registration'], ['transcript', 'Transcript & GPA'], ['audit', 'Degree Audit'], ['services', 'Student Services']],
             teacher: [['moduleMarks', 'Module Marks & DP']],
             principal: [['senate', 'Senate Approvals'], ['programmes', 'Programmes & Modules']],
-            admin: [['registrar', 'Registrar Console']],
+            admin: [['registrar', 'Registrar Console'], ['applications', 'Applications']],
         };
         const TERTIARY_ROLE_TAB_LABEL = { teacher: 'Lecturer', principal: 'Dean', deputy: 'Deputy Dean', admin: 'Registrar', it: 'ICT Services' };
         const TERTIARY_ROLE_LABEL = { teacher: 'Lecturer', principal: 'Dean / Chair of Senate', deputy: 'Deputy Dean', admin: "Registrar's Office", librarian: 'Library & Information Services', it: 'ICT Services' };
@@ -4132,7 +4622,7 @@
             const custom = schoolCustomRoles(currentSchoolMeta()).find(r => r.key === key);
             return custom ? custom.label : key;
         }
-        const ROLE_TAB_SHORT = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy', admin: 'Admin', librarian: 'Librarian', it: 'IT' };
+        const ROLE_TAB_SHORT = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy', admin: 'Admin', librarian: 'Librarian', it: 'IT', parent: 'Parent' };
 
         /* ---- Per-school interface customization ----
            Each school record can carry disabledRoles (role tabs hidden from
@@ -4270,7 +4760,7 @@
 
         /* Announcements & Calendar share one implementation across every role —
            permissions inside each function branch on user.role. */
-        ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it'].forEach(role => {
+        ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it', 'parent'].forEach(role => {
             window[`render_${role}_announcements`] = (main, user) => render_announcements_page(main, user);
             window[`render_${role}_calendar`] = (main, user) => render_calendar_page(main, user);
             window[`render_${role}_duties`] = (main, user) => renderDutiesPage(main, user);
@@ -4312,7 +4802,15 @@
             const markEl = document.getElementById('schoolBrandMark');
             if (markEl) {
                 if (activeSchoolMeta && activeSchoolMeta.badge) {
-                    markEl.outerHTML = `<img class="mark-img" id="schoolBrandMark" src="${activeSchoolMeta.badge}" alt="${(activeSchoolMeta.name || 'School')} badge">`;
+                    const regBits = [
+                        activeSchoolMeta.type || null,
+                        activeSchoolMeta.region || null,
+                        activeSchoolMeta.address || null,
+                        activeSchoolMeta.status ? `Status: ${activeSchoolMeta.status}` : null,
+                        activeSchoolMeta.registeredAt ? `Registered: ${new Date(activeSchoolMeta.registeredAt).toLocaleDateString()}` : null,
+                    ].filter(Boolean);
+                    const regTitle = `${activeSchoolMeta.name || 'School'}${regBits.length ? ' — ' + regBits.join(' · ') : ''}`;
+                    markEl.outerHTML = `<img class="mark-img" id="schoolBrandMark" src="${activeSchoolMeta.badge}" alt="${escapeHtml(activeSchoolMeta.name || 'School')} badge" title="${escapeHtml(regTitle)}">`;
                 } else if (markEl.tagName === 'IMG') {
                     markEl.outerHTML = `<span class="mark" id="schoolBrandMark">EP</span>`;
                 }
@@ -5162,6 +5660,19 @@
             });
         }
 
+        /* Self-serve version of the Owner Console's "Search Setup" download,
+           surfaced directly on a Tertiary school's own Dean/IT Overview so
+           they don't need to go through the platform Owner to get their
+           sitemap/robots/banner/logo files. */
+        function searchSetupPanelHtml(school) {
+            const principalLbl = TERTIARY_ROLE_LABEL.principal || 'Dean';
+            return `
+    <div class="panel">
+      <h3 style="font-size:16px; margin:0 0 4px;">Search Engine Setup</h3>
+      <p class="muted" style="margin:0 0 12px;">Download this ${principalLbl === 'Dean' ? 'institution' : 'school'}'s sitemap, robots.txt, link-preview banner and logo — the banner and logo now use the badge and photo set above. These help search engines and shared-link previews (WhatsApp, Facebook, LinkedIn) show ${escapeHtml(school.name || 'this school')} correctly once the site is hosted at a real public web address.</p>
+      <button type="button" class="btn small" id="tertSearchSetupBtn">Download Search Setup Files</button>
+    </div>`;
+        }
         function render_principal_overview(main, user) {
             const quizzes = getQuizzes();
             const subs = getSubmissions();
@@ -5199,8 +5710,11 @@
 
             main.innerHTML = `<div class="eyebrow">School-wide</div><h2>Overview</h2>
     ${schoolDetailsHtml}
+    ${(canEditBranding && isTertiary()) ? searchSetupPanelHtml(school) : ''}
     ${bodyHtml}`;
             wireSchoolBrandingCard(main, canEditBranding, () => render_principal_overview(main, user));
+            const tertSearchSetupBtn = document.getElementById('tertSearchSetupBtn');
+            if (tertSearchSetupBtn) tertSearchSetupBtn.onclick = () => downloadSchoolSearchSetup(school);
             renderWorldNewsWidget(main.querySelector('#worldNewsBody'));
         }
         function render_principal_quizzes(main, user) {
@@ -5678,6 +6192,7 @@
             <option value="admin">School Administrator</option>
             <option value="librarian">Librarian</option>
             <option value="it">IT Management</option>
+            <option value="parent">Parent / Guardian</option>
             ${customRoleOpts}
           </select>
         </div>
@@ -5692,7 +6207,7 @@
     </div>
     <div class="panel">
       <h3 style="font-size:16px;">Bulk import users</h3>
-      <p class="muted" style="margin-top:0;">Upload a .csv/.txt file or paste rows below, one user per line, formatted as <code>Name, Role, Class or Subject, Guardian Name, Guardian Phone, Guardian Email</code>. Guardian columns only apply to students (email is optional). Valid roles: student, teacher, principal, deputy, admin, librarian, it.</p>
+      <p class="muted" style="margin-top:0;">Upload a .csv/.txt file or paste rows below, one user per line, formatted as <code>Name, Role, Class or Subject, Guardian Name, Guardian Phone, Guardian Email</code>. Guardian columns only apply to students (email is optional). For a parent/guardian row, put the child's username (or exact name, if importing together) in the third column: <code>Name, parent, STU0001</code>. Valid roles: student, teacher, principal, deputy, admin, librarian, it, parent.</p>
       <label>Upload file (optional)</label>
       <input type="file" id="userImportFile" accept=".csv,.txt">
       <label>Or paste rows</label>
@@ -5720,6 +6235,8 @@
         <div><label>Guardian email (optional)</label><input type="text" id="regGuardianEmail" placeholder="e.g. thandi@example.com"></div>`;
                 } else if (role === 'teacher') {
                     extraWrap.innerHTML = `<div><label>Subject</label><input type="text" id="regClass" placeholder="e.g. Mathematics" list="regSubjectList">${subjectsDatalist('regSubjectList')}</div>`;
+                } else if (role === 'parent') {
+                    extraWrap.innerHTML = `<div><label>Child's username</label><input type="text" id="regChildUsername" placeholder="e.g. STU0001"></div>`;
                 } else {
                     extraWrap.innerHTML = '';
                 }
@@ -5748,6 +6265,14 @@
                     newUser.guardianEmail = guardianEmail;
                 }
                 if (role === 'teacher') newUser.subject = extraVal;
+                if (role === 'parent') {
+                    const childInput = main.querySelector('#regChildUsername');
+                    const childUsername = (childInput ? childInput.value : '').trim().toUpperCase();
+                    if (!childUsername) { alert("Enter your child's username."); return; }
+                    const child = getUsers().find(u => (u.username || '').toUpperCase() === childUsername && u.role === 'student');
+                    if (!child) { alert('No student found with that username. Check with the school office.'); return; }
+                    newUser.linkedStudentIds = [child.id];
+                }
                 const allUsers = getUsers();
                 allUsers.push(newUser);
                 DB.set('users', allUsers);
@@ -5761,7 +6286,7 @@
                 };
             });
 
-            const VALID_ROLES = ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it'];
+            const VALID_ROLES = ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it', 'parent'];
             const importFile = main.querySelector('#userImportFile');
             const importText = main.querySelector('#userImportText');
             const importStatus = main.querySelector('#userImportStatus');
@@ -5797,6 +6322,17 @@
                         newUser.guardianEmail = guardianEmail;
                     }
                     if (role === 'teacher') newUser.subject = extra;
+                    if (role === 'parent') {
+                        // Column 3 (extra) is the child's username if already
+                        // assigned, otherwise falls back to matching an exact
+                        // student name already in this batch/roster — covers
+                        // importing a parent row before that student has a
+                        // username assigned yet.
+                        const query = extra.toUpperCase();
+                        const child = allUsers.find(u => u.role === 'student' && ((u.username || '').toUpperCase() === query || u.name.toLowerCase() === extra.toLowerCase()));
+                        if (!child) { skipped++; return; }
+                        newUser.linkedStudentIds = [child.id];
+                    }
                     allUsers.push(newUser);
                     added++;
                 });
@@ -5816,6 +6352,7 @@
     <div class="eyebrow">IT Management</div>
     <h2>${schoolMeta.name || 'This school'} — Technical Overview</h2>
     ${schoolBrandingCardHtml(schoolMeta, true)}
+    ${isTertiary() ? searchSetupPanelHtml(schoolMeta) : ''}
     <div class="panel">
       <p class="muted" style="margin-top:0;">IT Management has full technical visibility across this school. Open the tab menu above to jump straight into any Student, Teacher, ${roleLabel('principal')}, ${roleLabel('deputy')}, ${roleLabel('admin')}, or Librarian screen — every merged-in tab opens the real interface, not a read-only copy, so you can troubleshoot accounts, fix data, and support staff directly.</p>
       <div class="stat-row" style="margin-top:6px;">
@@ -5828,6 +6365,8 @@
       <button class="btn secondary small" id="itGoContactOwner">Open Contact Owner Console</button>
     </div>`;
             wireSchoolBrandingCard(main, true, () => render_it_overview(main, user));
+            const tertSearchSetupBtn = document.getElementById('tertSearchSetupBtn');
+            if (tertSearchSetupBtn) tertSearchSetupBtn.onclick = () => downloadSchoolSearchSetup(schoolMeta);
             const goBtn = document.getElementById('itGoContactOwner');
             if (goBtn) goBtn.onclick = () => { state.tab = 'contactOwner'; render(); };
         }
@@ -6488,7 +7027,7 @@
 
         /* ---------------- ANNOUNCEMENTS (Notice board) ---------------- */
         function render_announcements_page(main, user) {
-            const canPost = user.role !== 'student';
+            const canPost = user.role !== 'student' && user.role !== 'parent';
             const notices = visibleAnnouncementsFor(user);
             main.innerHTML = `<div class="eyebrow">Notice board</div><h2>Announcements</h2>
     ${canPost ? `<div class="panel">
@@ -7034,16 +7573,29 @@
            Teacher creates a room and adds Students as members (a class room).
            Everyone in a room — owner and members alike — can post and reply,
            unlike Messages (1-to-1) or the public Discussion forum. */
-        let roomsState = { activeRoomId: null, showCreate: false, selectedMemberIds: [], showAddMembers: false };
+        let roomsState = { activeRoomId: null, showCreate: false, selectedMemberIds: [], showAddMembers: false, pendingDeptScope: '' };
 
         function render_principal_rooms(main, user) {
-            renderRoomsPage(main, user, { canCreate: true, memberRole: 'teacher', memberRoleLabel: 'teacher', memberRoleLabelPlural: 'Teachers', emptyMemberMsg: 'No teachers registered yet.' });
+            renderRoomsPage(main, user, { canCreate: true, memberRole: 'teacher', memberRoleLabel: 'teacher', memberRoleLabelPlural: 'Teachers', emptyMemberMsg: 'No teachers registered yet.', deptScopeEnabled: true });
         }
         function render_teacher_rooms(main, user) {
             renderRoomsPage(main, user, { canCreate: true, memberRole: 'student', memberRoleLabel: 'student', memberRoleLabelPlural: 'Students', emptyMemberMsg: 'No students registered yet.' });
         }
         function render_student_rooms(main, user) {
             renderRoomsPage(main, user, { canCreate: false });
+        }
+
+        /* Distinct departments/programs among this school's teachers, taken
+           from each teacher's existing `subject` field (already doubles as
+           "program" for Tertiary-style schools — e.g. "Statistics",
+           "Economics" — and as "department" for regular schools — e.g.
+           "Mathematics", "Religious Education"). No new field needed: this
+           just reads what's already entered when a teacher account is
+           created/edited. */
+        function getTeacherDepartments() {
+            const depts = new Set();
+            getUsers().filter(u => u.role === 'teacher' && u.subject && u.subject.trim()).forEach(u => depts.add(u.subject.trim()));
+            return [...depts].sort((a, b) => a.localeCompare(b));
         }
 
         function roomsFor(user) {
@@ -7066,7 +7618,16 @@
       </div>
       ${roomsState.showCreate ? `
         <label>Room name</label>
-        <input type="text" id="roomName" placeholder="e.g. Staff Discussion, Form 4A Room">
+        <input type="text" id="roomName" placeholder="e.g. Staff Discussion, Form 4A Room" value="${roomsState.showCreate && roomsState.pendingDeptScope ? escapeHtml(roomsState.pendingDeptScope + ' Department') : ''}">
+        ${opts.deptScopeEnabled ? `<label>Quick add by department / program</label>
+        <div style="display:flex; gap:8px;">
+          <select id="roomDeptPick" style="flex:1;">
+            <option value="">— pick a department to auto-add its teachers —</option>
+            ${getTeacherDepartments().map(d => `<option value="${escapeHtml(d)}" ${roomsState.pendingDeptScope === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
+          </select>
+          <button type="button" class="btn secondary small" id="roomDeptApplyBtn">Apply</button>
+        </div>
+        <div class="muted" style="font-size:11px; margin:2px 0 8px;">Matches teachers by the subject/department already set on their account. You can still add or remove individual teachers below.</div>` : ''}
         <label>Add ${opts.memberRoleLabelPlural}</label>
         <div id="roomMemberPicker" style="max-height:220px; overflow-y:auto; border:1px solid var(--rule); border-radius:6px; padding:6px 10px;"></div>
         <button class="btn" id="roomCreateBtn" style="margin-top:12px;">Create room</button>
@@ -7100,10 +7661,22 @@
                     };
                 });
             }
+            if (opts.canCreate && roomsState.showCreate && opts.deptScopeEnabled) {
+                const deptPick = main.querySelector('#roomDeptPick');
+                const deptApplyBtn = main.querySelector('#roomDeptApplyBtn');
+                if (deptApplyBtn) deptApplyBtn.onclick = () => {
+                    const dept = deptPick ? deptPick.value : '';
+                    roomsState.pendingDeptScope = dept;
+                    if (dept) {
+                        roomsState.selectedMemberIds = getUsers().filter(u => u.role === 'teacher' && (u.subject || '').trim() === dept).map(u => u.id);
+                    }
+                    render();
+                };
+            }
             if (opts.canCreate) {
                 main.querySelector('#roomNewBtn').onclick = () => {
                     roomsState.showCreate = !roomsState.showCreate;
-                    if (roomsState.showCreate) roomsState.selectedMemberIds = [];
+                    if (roomsState.showCreate) { roomsState.selectedMemberIds = []; roomsState.pendingDeptScope = ''; }
                     render();
                 };
                 if (roomsState.showCreate) {
@@ -7112,11 +7685,12 @@
                         if (!name) { alert('Give the room a name.'); return; }
                         if (roomsState.selectedMemberIds.length === 0) { alert(`Select at least one ${opts.memberRoleLabel} to add.`); return; }
                         const all = getRooms();
-                        const room = { id: uid('room'), name, ownerId: user.id, ownerName: user.name, ownerRole: user.role, memberIds: [...roomsState.selectedMemberIds], createdAt: new Date().toISOString() };
+                        const room = { id: uid('room'), name, ownerId: user.id, ownerName: user.name, ownerRole: user.role, memberIds: [...roomsState.selectedMemberIds], deptScope: (opts.deptScopeEnabled && roomsState.pendingDeptScope) || null, createdAt: new Date().toISOString() };
                         all.push(room);
                         saveRooms(all);
                         roomsState.showCreate = false;
                         roomsState.selectedMemberIds = [];
+                        roomsState.pendingDeptScope = '';
                         roomsState.activeRoomId = room.id;
                         render();
                     };
@@ -7133,7 +7707,7 @@
                     const last = msgs.slice().sort((a, b) => new Date(b.sentAt) - new Date(a.sentAt))[0];
                     const memberCount = (r.memberIds || []).length + 1;
                     return `<div class="conv-list-item ${r.id === roomsState.activeRoomId ? 'active' : ''}" data-room="${r.id}">
-        <div>${r.name}</div>
+        <div>${r.name}${r.deptScope ? ` <span class="tag scheduled" style="font-size:9px;">${escapeHtml(r.deptScope)}</span>` : ''}</div>
         <div class="muted" style="font-size:11px;">${memberCount} member${memberCount === 1 ? '' : 's'}${r.ownerId === user.id ? ' · you own this' : ''}</div>
         ${last ? `<div class="muted" style="font-size:11px;">${last.fromName}: ${last.body.slice(0, 26)}${last.body.length > 26 ? '…' : ''}</div>` : ''}
       </div>`;
@@ -7158,12 +7732,27 @@
 
             const isOwner = (hasFullAccess() || room.ownerId === user.id);
             const memberUsers = (room.memberIds || []).map(id => getUsers().find(u => u.id === id)).filter(Boolean);
-            headEl.innerHTML = `<div style="font-weight:600;">${room.name}</div>
+            headEl.innerHTML = `<div style="font-weight:600;">${room.name}${room.deptScope ? ` <span class="tag scheduled" style="font-weight:400;">${escapeHtml(room.deptScope)}</span>` : ''}</div>
     <div class="muted" style="font-size:12px; margin-top:2px;">Started by ${room.ownerName} · ${memberUsers.map(m => m.name).join(', ') || 'no members yet'}</div>
     ${isOwner ? `<button class="btn secondary small" id="roomManageBtn" style="margin-top:6px;">${roomsState.showAddMembers ? 'Done' : 'Add members'}</button>
+    ${room.deptScope ? `<button class="btn secondary small" id="roomSyncDeptBtn" style="margin-top:6px;" title="Re-check the ${escapeHtml(room.deptScope)} department and add any teachers not yet in this room">Sync department members</button>` : ''}
     <button class="btn danger small" id="roomDeleteBtn" style="margin-top:6px;">Delete room</button>` : ''}
     ${isOwner && roomsState.showAddMembers ? `<div id="roomAddPicker" style="max-height:180px; overflow-y:auto; border:1px solid var(--rule); border-radius:6px; padding:6px 10px; margin-top:8px;"></div>
       <button class="btn small" id="roomAddSaveBtn" style="margin-top:8px;">Save members</button>` : ''}`;
+
+            if (isOwner && room.deptScope) {
+                const syncBtn = main.querySelector('#roomSyncDeptBtn');
+                if (syncBtn) syncBtn.onclick = () => {
+                    const deptTeacherIds = getUsers().filter(u => u.role === 'teacher' && (u.subject || '').trim() === room.deptScope).map(u => u.id);
+                    const merged = new Set([...(room.memberIds || []), ...deptTeacherIds]);
+                    const added = deptTeacherIds.filter(id => !(room.memberIds || []).includes(id)).length;
+                    const all = getRooms();
+                    const idx = all.findIndex(r => r.id === room.id);
+                    if (idx > -1) { all[idx].memberIds = [...merged]; saveRooms(all); }
+                    alert(added > 0 ? `Added ${added} teacher${added === 1 ? '' : 's'} newly assigned to ${room.deptScope}.` : `Everyone currently in ${room.deptScope} is already a member.`);
+                    render();
+                };
+            }
 
             if (isOwner) {
                 main.querySelector('#roomManageBtn').onclick = () => { roomsState.showAddMembers = !roomsState.showAddMembers; render(); };
@@ -7631,10 +8220,28 @@
         }
 
         /* ---- REGISTRAR'S OFFICE: Registrar Console ---- */
+        /* Creates a real student account + fee account, admitting them onto a
+           programme. Shared by the manual "Admit student" form below and by
+           approving a public admission application (render_admin_applications),
+           so both paths produce an identical, correctly-set-up account. */
+        function admitStudent(name, programmeId, yearOfStudy, initialBalance) {
+            const prog = programmeById(programmeId);
+            const users = getUsers();
+            const studentNumber = generateStudentNumber();
+            const newUser = { id: uid('s'), name, role: 'student', class: `${prog ? prog.name : 'Programme'} · Yr ${yearOfStudy}`, studentNumber, programmeId, yearOfStudy: Number(yearOfStudy) || 1 };
+            users.push(newUser);
+            DB.set('users', users);
+            const fees = getFeeAccounts();
+            const balance = Number(initialBalance) || 0;
+            fees.push({ studentId: newUser.id, balance, cleared: !(balance > 0) });
+            saveFeeAccounts(fees);
+            return newUser;
+        }
         function render_admin_registrar(main, user) {
             const cal = getAcademicCalendar();
             const students = getUsers().filter(u => u.role === 'student');
             const programmes = getProgrammes();
+            const svcRequests = getServiceRequests().slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
             main.innerHTML = `<div class="eyebrow">Registrar's Office</div><h2>Registrar Console</h2>
     <h3 style="font-size:16px;">Academic Calendar</h3>
     <div class="panel">
@@ -7684,6 +8291,15 @@
     <div class="stat-row">
       ${programmes.length === 0 ? '<div class="empty">No programmes yet.</div>' : programmes.map(p => `<div class="stat-card"><div class="num">${students.filter(s => s.programmeId === p.id).length}</div><div class="lbl">${p.name}</div></div>`).join('')}
     </div>
+    <h3 style="font-size:16px; margin-top:24px;">Student Service Requests</h3>
+    ${svcRequests.length === 0 ? '<div class="empty">No requests submitted yet.</div>' : `<div class="panel"><table><thead><tr><th>Student</th><th>Category</th><th>Details</th><th>Status</th><th></th></tr></thead><tbody>
+      ${svcRequests.map(r => `<tr><td>${escapeHtml(r.studentName || '—')}</td><td>${escapeHtml(r.category)}</td>
+        <td class="muted" style="font-size:12.5px; max-width:260px;">${escapeHtml(r.message)}</td>
+        <td><select class="field" data-svc-status="${r.id}" style="font-size:12.5px; padding:4px 6px;">
+          ${['Pending', 'In Progress', 'Resolved', 'Declined'].map(s => `<option value="${s}" ${r.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        </select></td>
+        <td><button class="btn small" data-svc-save="${r.id}">Save</button></td></tr>`).join('')}
+      </tbody></table></div>`}
   `;
             main.querySelector('#calSave').onclick = () => {
                 saveAcademicCalendar({
@@ -7736,6 +8352,19 @@
            page works identically for a real logged-in account and for Owner
            Access impersonation. */
         const DUTIES = {
+            parent: {
+                school: [
+                    ['Check your child\u2019s attendance record regularly.', 'attendance'],
+                    ['Review quiz and assignment grades on the Grades tab.', 'grades'],
+                    ['Keep an eye on your child\u2019s fee balance, if applicable.', 'fees'],
+                    ['Read school announcements and keep an eye on the calendar for events.', 'announcements'],
+                ],
+                tertiary: [
+                    ['Check your child\u2019s attendance and grade summaries.', 'attendance'],
+                    ['Keep an eye on fee clearance status, which can block module registration.', 'fees'],
+                    ['Read faculty/Senate announcements and keep an eye on the academic calendar.', 'announcements'],
+                ],
+            },
             student: {
                 school: [
                     ['Keep up with class materials and the course topic checklist your teacher publishes.', 'materials'],
@@ -7883,7 +8512,109 @@
             });
         }
 
-        /* ---------------- Timetable (school class schedule / tertiary module & exam timetable) ---------------- */
+        /* ---------------- PARENT / GUARDIAN PORTAL ----------------
+           Read-only view scoped to whichever student(s) this account is
+           linked to (user.linkedStudentIds). Linking happens at
+           registration (parent enters their child's username) and can be
+           extended later from the overview tab. Reuses the same summary
+           helpers the Student/Teacher/Principal screens already rely on
+           (studentGradeSummary, attendanceSummaryFor, feeAccountFor) so
+           there's nothing new to keep in sync. */
+        function childrenFor(user) {
+            const ids = Array.isArray(user.linkedStudentIds) ? user.linkedStudentIds : (user.linkedStudentId ? [user.linkedStudentId] : []);
+            return ids.map(id => getUsers().find(u => u.id === id && u.role === 'student')).filter(Boolean);
+        }
+        function linkChildToParent(parentUser, childUsername) {
+            const username = (childUsername || '').trim().toUpperCase();
+            if (!username) return { ok: false, error: "Enter the child's username." };
+            const child = getUsers().find(u => (u.username || '').toUpperCase() === username && u.role === 'student');
+            if (!child) return { ok: false, error: 'No student found with that username.' };
+            const users = getUsers();
+            const idx = users.findIndex(u => u.id === parentUser.id);
+            if (idx === -1) return { ok: false, error: 'Account not found.' };
+            const existing = Array.isArray(users[idx].linkedStudentIds) ? users[idx].linkedStudentIds : [];
+            if (existing.includes(child.id)) return { ok: false, error: `${child.name} is already linked to this account.` };
+            users[idx].linkedStudentIds = [...existing, child.id];
+            saveUsers(users);
+            authedUser = users[idx];
+            return { ok: true, child };
+        }
+        function render_parent_overview(main, user) {
+            const kids = childrenFor(user);
+            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>My Children</h2>
+    ${kids.length === 0 ? '<div class="empty">No children linked to this account yet. Add one below using their school username (e.g. STU0001) — ask the school office if you don\'t have it.</div>' : `<div class="grid2">
+      ${kids.map(k => {
+                const att = attendanceSummaryFor(k.id);
+                const grade = studentGradeSummary(k.id);
+                const fee = feeAccountFor(k.id);
+                return `<div class="panel">
+          <h3 style="font-size:16px; margin:0 0 4px;">${escapeHtml(k.name)}</h3>
+          <p class="muted" style="margin:0 0 10px;">${escapeHtml(k.class || '\u2014')}${k.username ? ' · ' + k.username : ''}</p>
+          <p style="margin:4px 0;">Attendance: <strong>${att.rate != null ? att.rate + '%' : '\u2014'}</strong> <span class="muted">(${att.total || 0} record${(att.total || 0) === 1 ? '' : 's'})</span></p>
+          <p style="margin:4px 0;">Overall grade: <strong>${grade.combined != null ? grade.combined + '%' : '\u2014'}</strong></p>
+          <p style="margin:4px 0;">Fees: ${fee.cleared ? '<span class="tag good">Cleared</span>' : `<span class="tag bad">Balance E${(fee.balance || 0).toFixed(2)}</span>`}</p>
+        </div>`;
+            }).join('')}
+    </div>`}
+    <div class="panel" style="margin-top:16px;">
+      <h3 style="font-size:15px; margin:0;">Link a child</h3>
+      <p class="muted" style="margin-top:0;">Enter your child's school username to add them to this account. You can link more than one child.</p>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="parentLinkUsername" placeholder="e.g. STU0001" style="flex:1;">
+        <button class="btn small" id="parentLinkBtn">Link child</button>
+      </div>
+      <p class="muted" id="parentLinkStatus" style="margin-top:8px;"></p>
+    </div>`;
+            main.querySelector('#parentLinkBtn').onclick = () => {
+                const result = linkChildToParent(user, main.querySelector('#parentLinkUsername').value);
+                const status = main.querySelector('#parentLinkStatus');
+                if (!result.ok) { status.textContent = result.error; status.style.color = 'var(--bad)'; return; }
+                render();
+            };
+        }
+        function render_parent_attendance(main, user) {
+            const kids = childrenFor(user);
+            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>Attendance</h2>
+    ${kids.length === 0 ? '<div class="empty">No children linked yet — add one from the My Children tab.</div>' : kids.map(k => {
+                const rows = getAttendance().filter(r => r.studentId === k.id).sort((a, b) => new Date(b.date) - new Date(a.date));
+                return `<div class="panel">
+        <h3 style="font-size:15px; margin:0 0 8px;">${escapeHtml(k.name)}</h3>
+        ${rows.length === 0 ? '<p class="muted">No attendance records yet.</p>' : `<table><thead><tr><th>Date</th><th>Status</th><th>Notes</th></tr></thead><tbody>
+          ${rows.map(r => `<tr><td>${r.date}</td><td><span class="tag ${r.status === 'present' ? 'good' : r.status === 'late' ? 'scheduled' : 'bad'}">${r.status}</span></td><td class="muted">${escapeHtml(r.notes || '\u2014')}</td></tr>`).join('')}
+        </tbody></table>`}
+      </div>`;
+            }).join('')}`;
+        }
+        function render_parent_grades(main, user) {
+            const kids = childrenFor(user);
+            const assignments = getAssignments();
+            const quizzes = getQuizzes();
+            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>Grades</h2>
+    ${kids.length === 0 ? '<div class="empty">No children linked yet — add one from the My Children tab.</div>' : kids.map(k => {
+                const quizSubs = getSubmissions().filter(s => s.studentId === k.id);
+                const asgSubs = getAssignmentSubs().filter(s => s.studentId === k.id && s.grade != null && s.grade !== '');
+                const summary = studentGradeSummary(k.id);
+                return `<div class="panel">
+        <h3 style="font-size:15px; margin:0 0 4px;">${escapeHtml(k.name)}</h3>
+        <p class="muted" style="margin:0 0 10px;">Overall: <strong>${summary.combined != null ? summary.combined + '%' : 'No grades yet'}</strong></p>
+        ${quizSubs.length ? `<p style="margin:6px 0 2px; font-weight:600; font-size:13px;">Quizzes</p><table><thead><tr><th>Quiz</th><th>Score</th></tr></thead><tbody>
+          ${quizSubs.map(s => { const q = quizzes.find(x => x.id === s.quizId); return `<tr><td>${q ? escapeHtml(q.title) : 'Quiz'}</td><td>${s.score}/${s.total}</td></tr>`; }).join('')}
+        </tbody></table>` : ''}
+        ${asgSubs.length ? `<p style="margin:10px 0 2px; font-weight:600; font-size:13px;">Assignments</p><table><thead><tr><th>Assignment</th><th>Grade</th></tr></thead><tbody>
+          ${asgSubs.map(s => { const a = assignments.find(x => x.id === s.assignmentId); return `<tr><td>${a ? escapeHtml(a.title) : 'Assignment'}</td><td>${s.grade}${a && a.maxScore ? '/' + a.maxScore : ''}</td></tr>`; }).join('')}
+        </tbody></table>` : ''}
+        ${!quizSubs.length && !asgSubs.length ? '<p class="muted">No graded work yet.</p>' : ''}
+      </div>`;
+            }).join('')}`;
+        }
+        function render_parent_fees(main, user) {
+            const kids = childrenFor(user);
+            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>Fees</h2>
+    ${kids.length === 0 ? '<div class="empty">No children linked yet — add one from the My Children tab.</div>' : `<div class="panel"><table><thead><tr><th>Child</th><th>Status</th><th>Balance</th></tr></thead><tbody>
+      ${kids.map(k => { const fee = feeAccountFor(k.id); return `<tr><td>${escapeHtml(k.name)}</td><td>${fee.cleared ? '<span class="tag good">Cleared</span>' : '<span class="tag bad">Outstanding</span>'}</td><td>E${(fee.balance || 0).toFixed(2)}</td></tr>`; }).join('')}
+    </tbody></table></div>`}
+    <p class="muted" style="margin-top:10px;">Fee tracking only applies to schools using the fee/registration module (mainly Tertiary-style schools) — this may read as cleared with a zero balance for other schools.</p>`;
+        }
         const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Exam Period'];
         function render_admin_timetable(main, user) {
             const tertiary = isTertiary();
@@ -8061,6 +8792,53 @@
     </div>
     <h3 style="font-size:16px; margin-top:20px;">Modules \u2014 ${prog.name}</h3>
     ${rows.length === 0 ? '<div class="empty">No modules on this programme yet.</div>' : `<div class="panel"><table><thead><tr><th>Code</th><th>Module</th><th>Credits</th><th>Status</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>`}`;
+        }
+
+        /* ---------------- Student Services ----------------
+           Informational categories (mirrors a real university's Student
+           Services section: bursaries/financial aid, accommodation, health,
+           counselling) plus a lightweight request form. Requests are handled
+           by the Registrar's Office (see the "Student Requests" section added
+           to render_admin_registrar below). */
+        const STUDENT_SERVICE_CATEGORIES = [
+            { key: 'Bursary / Financial Aid', desc: 'Bursary applications, scholarship enquiries, and fee payment arrangements.' },
+            { key: 'Accommodation', desc: 'On-campus residence applications, room changes, and off-campus housing queries.' },
+            { key: 'Health Services', desc: 'Campus clinic appointments, medical certificates, and health insurance queries.' },
+            { key: 'Counselling', desc: 'Confidential academic, personal, or career counselling appointments.' },
+        ];
+        function render_student_services(main, user) {
+            const myRequests = getServiceRequests().filter(r => r.studentId === user.id).slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            main.innerHTML = `<div class="eyebrow">Student Affairs</div><h2>Student Services</h2>
+    <div class="stat-row">
+      ${STUDENT_SERVICE_CATEGORIES.map(c => `<div class="stat-card" style="text-align:left; padding:12px 14px;">
+        <div style="font-weight:600; font-size:13.5px;">${c.key}</div>
+        <div class="muted" style="font-size:12px; margin-top:4px;">${c.desc}</div>
+      </div>`).join('')}
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <div class="eyebrow">Submit a request</div>
+      <div class="grid2">
+        <div><label>Category</label><select class="field" id="svcCategory">${STUDENT_SERVICE_CATEGORIES.map(c => `<option value="${c.key}">${c.key}</option>`).join('')}</select></div>
+      </div>
+      <div style="margin-top:10px;"><label>Details</label><textarea id="svcMessage" rows="3" placeholder="Describe what you need help with…"></textarea></div>
+      <button class="btn" id="svcSubmit" style="margin-top:14px;">Submit request</button>
+    </div>
+    <h3 style="font-size:16px; margin-top:20px;">Your requests</h3>
+    ${myRequests.length === 0 ? '<div class="empty">No requests submitted yet.</div>' : `<div class="panel"><table><thead><tr><th>Category</th><th>Details</th><th>Status</th><th>Submitted</th></tr></thead><tbody>
+      ${myRequests.map(r => `<tr><td>${escapeHtml(r.category)}</td><td class="muted" style="font-size:12.5px;">${escapeHtml(r.message)}</td>
+        <td><span class="tag ${tagClassFor(r.status)}">${escapeHtml(r.status || 'Pending')}</span></td>
+        <td class="muted" style="font-size:12px;">${(r.createdAt || '').slice(0, 10)}</td></tr>`).join('')}
+      </tbody></table></div>`}
+  `;
+            main.querySelector('#svcSubmit').onclick = () => {
+                const category = main.querySelector('#svcCategory').value;
+                const message = main.querySelector('#svcMessage').value.trim();
+                if (!message) { alert('Please describe what you need help with.'); return; }
+                const list = getServiceRequests();
+                list.push({ id: uid('svc'), studentId: user.id, studentName: user.name, category, message, status: 'Pending', createdAt: new Date().toISOString() });
+                saveServiceRequests(list);
+                render();
+            };
         }
 
         /* ---------------- Owner Console: render + actions ---------------- */
@@ -8267,6 +9045,23 @@
     </div>
 
     <div class="panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3 style="font-size:16px; margin:0;">Search Engine Discoverability — Site-Wide</h3>
+          <p class="muted" style="font-size:12px; margin:4px 0 0; max-width:560px;">Covers every discoverable school at once. Only matters once this file is hosted at a real public web address (GitHub Pages, Netlify, etc.) — a local file or a Claude artifact link can't be crawled.</p>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="btn secondary small" id="masterSitemapBtn">Download Master Sitemap</button>
+          <button type="button" class="btn secondary small" id="securityTxtBtn">Download security.txt</button>
+          <button type="button" class="btn secondary small" id="pwaFilesBtn">Download PWA Files</button>
+        </div>
+      </div>
+      <div class="muted" style="font-size:11px; margin-top:10px; padding-top:10px; border-top:1px solid var(--rule);">
+        <strong>Note on JS rendering:</strong> this page builds each school's content in the browser after load. Google's crawler handles that fine. Bing and DuckDuckGo are slower and less reliable at it — if a school isn't showing up there months after hosting, that's usually why; resubmitting the sitemap in Bing Webmaster Tools periodically helps more than waiting.
+      </div>
+    </div>
+
+    <div class="panel">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
         <h3 style="font-size:16px; margin:0;">Registered Schools</h3>
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -8301,9 +9096,9 @@
 
     <div class="panel">
       <h3 style="font-size:16px; margin:0 0 4px;">GitHub Registry Sync</h3>
-      <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the school directory (name, school email, region, type, status) to a JSON file in a GitHub repository, so school names/emails can be recognized and added there too. Optional and off until you fill this in.</p>
+      <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the school directory (name, school email, region, type, status) to a JSON file in a GitHub repository, plus a second, simpler file with just every school's email — so school names/emails can be recognized and added there too. Optional and off until you fill this in.</p>
       ${githubConfigured() ? `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
-        ${ownerSyncBusy ? '⏳ Syncing with GitHub…' : '✓ Auto-sync is on — every registration, edit, suspend/activate, or delete is pushed to the repo automatically, no manual step needed.'}
+        ${ownerSyncBusy ? '⏳ Syncing with GitHub…' : '✓ Auto-sync is on — every registration, edit, suspend/activate, or delete pushes both the full registry and the emails-only file to the repo automatically, no manual step needed.'}
       </p>` : ''}
       <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">⚠ This is a static, browser-only app with no server of its own. The token below is saved in this browser and sent straight to api.github.com from here — it is not hidden from anyone with access to this device. Use a <strong>fine-grained Personal Access Token scoped to only this one repository's Contents (read/write)</strong>, not a broad classic token, and don't paste a real token into a copy of this file you hand to someone else.</p>
       <div class="grid2">
@@ -8316,6 +9111,8 @@
       </div>
       <label>File path in the repo</label>
       <input type="text" id="ghPath" value="${escapeHtml(githubCfg.path || 'eduportal-schools.json')}" placeholder="eduportal-schools.json">
+      <label style="margin-top:10px;">Emails-only file path <span class="muted" style="font-weight:400;">(a second, simpler file — just school + email, for a quick check that every school's email made it into the repo)</span></label>
+      <input type="text" id="ghEmailsPath" value="${escapeHtml(githubCfg.emailsPath || 'eduportal-school-emails.json')}" placeholder="eduportal-school-emails.json">
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
         <button type="button" class="btn secondary small" id="ghSaveBtn">Save settings</button>
         <button type="button" class="btn small" id="ghPushBtn">Push registry now</button>
@@ -8327,29 +9124,47 @@
         ${githubCfg.lastPullAt ? `Last pulled: ${new Date(githubCfg.lastPullAt).toLocaleString()}. ` : ''}
         ${githubCfg.lastSyncError ? `<span style="color:#a8531f;">Last error: ${escapeHtml(githubCfg.lastSyncError)}</span>` : (githubCfg.lastSyncAt || githubCfg.lastPullAt ? 'No errors.' : 'Not synced yet.')}
       </p>
+      <p class="muted" style="font-size:12px; margin-top:2px;">
+        ${githubCfg.lastEmailsSyncAt ? `Emails file last pushed: ${new Date(githubCfg.lastEmailsSyncAt).toLocaleString()} — ${schoolEmailsPayload().length} school email${schoolEmailsPayload().length === 1 ? '' : 's'}. ` : ''}
+        ${githubCfg.lastEmailsSyncError ? `<span style="color:#a8531f;">Emails file error: ${escapeHtml(githubCfg.lastEmailsSyncError)}</span>` : ''}
+      </p>
     </div>
 
     <div class="panel">
       <h3 style="font-size:16px; margin:0 0 4px;">Full Data Sync — everything, not just schools</h3>
-      <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the <strong>entire</strong> EduPortal database — every school's users, gradebooks, attendance, materials, announcements, discussion rooms, the Owner's own records, all of it — to one JSON file in the same repository. Once turned on, it fires automatically after <em>any</em> change anywhere in the app, by anyone, not just from the Owner Console. Uses the same token / owner / repo / branch entered above.</p>
-      <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">This pushes via GitHub's Git Data API rather than the simple file API, specifically so it isn't capped at 1MB — it can handle files up to about 100MB. Frequent changes are batched (a few seconds of quiet) so you don't get a commit per keystroke, but a busy school could still generate a lot of commits over a day. Needs the school registry pushed at least once first (that's what creates the branch this relies on).</p>
+      <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the <strong>entire</strong> EduPortal database — every school's users, gradebooks, attendance, materials, announcements, discussion rooms, the Owner's own records, all of it — into a folder of JSON files in the same repository, one file per school plus one for the Owner's own records, so each school's changes stay in their own file and diff cleanly. Once turned on, it fires automatically after <em>any</em> change anywhere in the app, by anyone, not just from the Owner Console. Uses the same token / owner / repo / branch entered above.</p>
+      <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">Pushes via GitHub's Git Data API rather than the simple file API, so files aren't capped at 1MB — each can hold up to about 100MB. If two tabs push at the same moment, this automatically retries on top of whatever landed first rather than failing. Frequent changes are batched (a few seconds of quiet) so you don't get a commit per keystroke. Needs the school registry pushed at least once first (that's what creates the branch this relies on).</p>
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
         <input type="checkbox" id="ghFullEnabled" style="width:auto;" ${githubCfg.fullSyncEnabled ? 'checked' : ''}>
         <span>Enable full data sync</span>
       </label>
-      <label style="margin-top:10px;">Full backup file path</label>
-      <input type="text" id="ghFullPath" value="${escapeHtml(githubCfg.fullPath || 'eduportal-full-backup.json')}" placeholder="eduportal-full-backup.json">
-      ${githubFullSyncConfigured() ? `<p class="muted" style="font-size:12.5px; margin:10px 0 0; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
-        ${fullSyncBusy ? '⏳ Syncing the full database with GitHub…' : '✓ Full auto-sync is on — every change anywhere in EduPortal is pushed to the repo.'}
+      <label style="margin-top:10px;">Full backup folder path</label>
+      <input type="text" id="ghFullPath" value="${escapeHtml(githubCfg.fullPath || 'eduportal-data')}" placeholder="eduportal-data">
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--muted);">Route through a proxy instead of a direct token (optional)</summary>
+        <p class="muted" style="font-size:12px; margin:8px 0;">A static page like this one has nowhere to hide a token — anyone with access to this browser's dev tools can see it. If that's a concern, stand up the example Cloudflare Worker in this repo's <code>proxy/</code> folder (it holds the real GitHub token server-side) and point this at it instead. Leave blank to keep talking to api.github.com directly with the token above.</p>
+        <label>Proxy URL</label>
+        <input type="text" id="ghProxyUrl" value="${escapeHtml(githubCfg.proxyUrl || '')}" placeholder="https://your-worker.example.workers.dev">
+        <label style="margin-top:10px;">Proxy key</label>
+        <input type="text" id="ghProxyKey" value="${escapeHtml(githubCfg.proxyKey || '')}" placeholder="Shared secret the worker checks for">
+      </details>
+      ${githubFullSyncConfigured() ? `<p class="muted" style="font-size:12.5px; margin:12px 0 0; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
+        ${fullSyncBusy ? '⏳ Syncing the full database with GitHub…' : (fullRestoreBusy ? '⏳ Restoring from GitHub…' : '✓ Full auto-sync is on — every change anywhere in EduPortal is pushed to the repo.')}
       </p>` : ''}
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
         <button type="button" class="btn secondary small" id="ghFullSaveBtn">Save settings</button>
         <button type="button" class="btn small" id="ghFullPushBtn">Push full backup now</button>
+        <button type="button" class="btn secondary small" id="ghFullDownloadBtn">Download backup</button>
+        <button type="button" class="btn danger small" id="ghFullRestoreBtn">Restore from GitHub…</button>
       </div>
       <p class="muted" style="font-size:12px; margin-top:10px;">
-        ${githubCfg.lastFullSyncAt ? `Last full sync: ${new Date(githubCfg.lastFullSyncAt).toLocaleString()}${githubCfg.lastFullSyncReason ? ` (${escapeHtml(githubCfg.lastFullSyncReason)})` : ''}. ` : ''}
+        ${githubCfg.lastFullSyncAt ? `Last full sync: ${new Date(githubCfg.lastFullSyncAt).toLocaleString()}${githubCfg.lastFullSyncReason ? ` (${escapeHtml(githubCfg.lastFullSyncReason)})` : ''}${githubCfg.lastFullSyncFileCount ? ` — ${githubCfg.lastFullSyncFileCount} files` : ''}. ` : ''}
         ${githubCfg.lastFullSyncCommitUrl ? `GitHub confirmed the commit: <a href="${githubCfg.lastFullSyncCommitUrl}" target="_blank" rel="noopener">${(githubCfg.lastFullSyncCommitSha || '').slice(0, 7)}</a>. ` : ''}
-        ${githubCfg.lastFullSyncError ? `<span style="color:#a8531f;">Last error: ${escapeHtml(githubCfg.lastFullSyncError)}</span>` : (githubCfg.lastFullSyncAt ? 'No errors.' : 'Not synced yet.')}
+        ${githubCfg.lastFullSyncError ? `<span style="color:#a8531f;">Last error: ${escapeHtml(githubCfg.lastFullSyncError)}</span>` : (githubCfg.lastFullSyncAt ? 'No sync errors.' : 'Not synced yet.')}
+      </p>
+      <p class="muted" style="font-size:12px; margin-top:4px;">
+        ${githubCfg.lastFullRestoreAt ? `Last restore: ${new Date(githubCfg.lastFullRestoreAt).toLocaleString()}. ` : ''}
+        ${githubCfg.lastFullRestoreError ? `<span style="color:#a8531f;">Last restore error: ${escapeHtml(githubCfg.lastFullRestoreError)}</span>` : ''}
       </p>
     </div>
 
@@ -8799,6 +9614,7 @@
                     repo: document.getElementById('ghRepo').value.trim(),
                     branch: document.getElementById('ghBranch').value.trim() || 'main',
                     path: document.getElementById('ghPath').value.trim() || 'eduportal-schools.json',
+                    emailsPath: document.getElementById('ghEmailsPath').value.trim() || 'eduportal-school-emails.json',
                 };
                 saveGithubConfig(cfg);
                 alert('GitHub sync settings saved.');
@@ -8809,8 +9625,12 @@
                 if (!githubConfigured()) { alert('Fill in and save the GitHub sync settings first.'); return; }
                 ghPushBtn.disabled = true; ghPushBtn.textContent = 'Pushing…';
                 await syncSchoolsToGithub('manual push from Owner Console');
-                const err = getGithubConfig().lastSyncError;
-                alert(err ? 'GitHub push failed: ' + err : 'School registry pushed to GitHub.');
+                const cfgAfter = getGithubConfig();
+                if (cfgAfter.lastSyncError) {
+                    alert('GitHub push failed: ' + cfgAfter.lastSyncError);
+                } else {
+                    alert(`School registry pushed to GitHub (${schoolEmailsPayload().length} school email${schoolEmailsPayload().length === 1 ? '' : 's'})${cfgAfter.lastEmailsSyncError ? `.\n\nThe emails-only file failed though: ${cfgAfter.lastEmailsSyncError}` : ', including the emails-only file.'}`);
+                }
                 renderOwner();
             };
 
@@ -8820,7 +9640,9 @@
                 const cfg = {
                     ...getGithubConfig(),
                     fullSyncEnabled: document.getElementById('ghFullEnabled').checked,
-                    fullPath: document.getElementById('ghFullPath').value.trim() || 'eduportal-full-backup.json',
+                    fullPath: document.getElementById('ghFullPath').value.trim() || 'eduportal-data',
+                    proxyUrl: document.getElementById('ghProxyUrl').value.trim(),
+                    proxyKey: document.getElementById('ghProxyKey').value.trim(),
                 };
                 saveGithubConfig(cfg);
                 alert('Full data sync settings saved.' + (cfg.fullSyncEnabled ? ' It will now push automatically after every change.' : ''));
@@ -8828,13 +9650,27 @@
             };
             const ghFullPushBtn = document.getElementById('ghFullPushBtn');
             if (ghFullPushBtn) ghFullPushBtn.onclick = async () => {
-                if (!getGithubConfig().token || !getGithubConfig().owner || !getGithubConfig().repo) { alert('Fill in and save the token, repo owner and repository name in the GitHub Registry Sync panel first.'); return; }
+                const c = getGithubConfig();
+                if ((!c.token && !c.proxyUrl) || !c.owner || !c.repo) { alert('Fill in and save the token (or a proxy URL), repo owner and repository name in the GitHub Registry Sync panel first.'); return; }
                 ghFullPushBtn.disabled = true; ghFullPushBtn.textContent = 'Pushing…';
-                const cfg = { ...getGithubConfig(), fullPath: document.getElementById('ghFullPath').value.trim() || 'eduportal-full-backup.json' };
+                const cfg = { ...getGithubConfig(), fullPath: document.getElementById('ghFullPath').value.trim() || 'eduportal-data' };
                 saveGithubConfig(cfg);
                 await runFullGithubSync('manual full push from Owner Console');
                 const err = getGithubConfig().lastFullSyncError;
                 alert(err ? 'GitHub full push failed: ' + err : 'Full database pushed to GitHub.');
+                renderOwner();
+            };
+            const ghFullDownloadBtn = document.getElementById('ghFullDownloadBtn');
+            if (ghFullDownloadBtn) ghFullDownloadBtn.onclick = () => { downloadFullBackupLocally(); };
+            const ghFullRestoreBtn = document.getElementById('ghFullRestoreBtn');
+            if (ghFullRestoreBtn) ghFullRestoreBtn.onclick = async () => {
+                const c = getGithubConfig();
+                if ((!c.token && !c.proxyUrl) || !c.owner || !c.repo) { alert('Fill in and save the token (or a proxy URL), repo owner and repository name in the GitHub Registry Sync panel first.'); return; }
+                if (!confirm('This overwrites data in THIS browser with whatever is currently in the GitHub backup — any local changes not yet pushed will be lost. Continue?')) return;
+                ghFullRestoreBtn.disabled = true; ghFullRestoreBtn.textContent = 'Restoring…';
+                const { result, error } = await runFullGithubRestore();
+                alert(error ? 'Restore failed: ' + error : `Restored ${result.keyCount} records from ${result.fileCount} files. Reloading…`);
+                if (!error) location.reload();
                 renderOwner();
             };
             const ghPullBtn = document.getElementById('ghPullBtn');
@@ -8890,13 +9726,28 @@
                     done(true);
                 }
             });
+            const masterSitemapBtn = document.getElementById('masterSitemapBtn');
+            if (masterSitemapBtn) masterSitemapBtn.onclick = () => {
+                const { sitemap, robots, schoolCount } = allSchoolsSearchSetupFiles();
+                downloadTextFile('sitemap.xml', sitemap);
+                downloadTextFile('robots.txt', robots);
+                alert(`Downloaded a combined sitemap.xml covering ${schoolCount} discoverable school${schoolCount === 1 ? '' : 's'}, plus robots.txt.\n\nPut both in the site's root folder once hosted, then submit the sitemap URL in Google Search Console and Bing Webmaster Tools.`);
+            };
+            const securityTxtBtn = document.getElementById('securityTxtBtn');
+            if (securityTxtBtn) securityTxtBtn.onclick = () => {
+                downloadTextFile('security.txt', securityTxtContent());
+                alert(`Downloaded security.txt.\n\nOnce hosted, place it at /.well-known/security.txt on the site's root (create a ".well-known" folder). This gives security researchers a standard place to report issues responsibly instead of guessing at a personal inbox.`);
+            };
+            const pwaFilesBtn = document.getElementById('pwaFilesBtn');
+            if (pwaFilesBtn) pwaFilesBtn.onclick = () => {
+                downloadTextFile('manifest.json', generateManifestJson());
+                downloadTextFile('service-worker.js', generateServiceWorkerJs());
+                alert(`Downloaded manifest.json and service-worker.js.\n\nPut both at the site's root once hosted (they're already referenced from <head> and from the service-worker registration in index.html). Also make sure icons/eduportal-icon.svg exists at that path — it ships with the repo scaffold, or re-create it if you've changed the app's branding. Together these are what makes "Add to Home Screen" and basic offline caching work.`);
+            };
             main.querySelectorAll('[data-seo]').forEach(b => b.onclick = () => {
                 const s = getSchools().find(x => x.id === b.dataset.seo);
                 if (!s) return;
-                const { sitemap, robots } = schoolSearchSetupFiles(s);
-                downloadTextFile(`${s.id}-sitemap.xml`, sitemap);
-                downloadTextFile(`${s.id}-robots.txt`, robots);
-                alert(`Downloaded sitemap.xml and robots.txt for ${s.name}.\n\nThese only get the school found on Google/Bing/etc. once this page is hosted at a real public web address (e.g. GitHub Pages, Netlify, the school's own domain) — a Claude artifact link or a file opened locally can't be crawled by search engines. Once hosted:\n1. Put both files in the site's root folder.\n2. Submit the site + sitemap in Google Search Console and Bing Webmaster Tools.\nUntil then, the link still works great when shared directly, or pasted into WhatsApp/Facebook/etc. — those will show the school's name and description from the link preview.`);
+                downloadSchoolSearchSetup(s);
             });
             main.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { ownerState.editingId = b.dataset.edit; ownerState.formOpen = true; renderOwner(); });
             main.querySelectorAll('[data-toggle-status]').forEach(b => b.onclick = () => {
@@ -9291,6 +10142,9 @@
 
         document.getElementById('ownerConsoleBtn').addEventListener('click', backToOwnerConsole);
 
+        const buildInfoFooterEl = document.getElementById('buildInfoFooter');
+        if (buildInfoFooterEl) buildInfoFooterEl.textContent = buildInfoText();
+
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 fetch('./service-worker.js', { method: 'HEAD' })
@@ -9344,6 +10198,16 @@
                 ? OwnerDB.get('demoEverUsed', false)
                 : (schoolMeta.seoDiscoverable !== false);
             const url = isDemoOrNone ? location.href : schoolAccessLink(schoolMeta.id);
+            // Per-school link-preview image. Points at a file this app can
+            // generate for download (see "Search Setup" in the Owner Console)
+            // but does not create on its own — a static file has to actually
+            // exist at that path on whatever host serves this page. Falls
+            // back to a single site-wide banner. If neither file has been
+            // uploaded yet, the image tag just points at a 404 and previews
+            // fall back to text-only, which is harmless.
+            const origin = location.origin && location.origin !== 'null' ? location.origin : '';
+            const ogImageUrl = (!isDemoOrNone && schoolMeta.id) ? `${origin}/og-images/${schoolMeta.id}.png` : `${origin}/og-image.png`;
+            const logoUrl = (!isDemoOrNone && schoolMeta.id) ? `${origin}/og-images/${schoolMeta.id}-logo.png` : '';
 
             document.title = name;
             const set = (id, attr, val) => { const el = document.getElementById(id); if (el) el.setAttribute(attr, val); };
@@ -9353,21 +10217,35 @@
             set('ogTitle', 'content', name);
             set('ogDescription', 'content', desc);
             set('ogUrl', 'content', url);
+            set('ogImage', 'content', ogImageUrl);
             set('twitterTitle', 'content', name);
             set('twitterDescription', 'content', desc);
+            set('twitterImage', 'content', ogImageUrl);
 
             const jsonLdEl = document.getElementById('seoJsonLd');
             if (jsonLdEl) {
                 if (!schoolMeta || (isDemoOrNone && !discoverable)) {
                     jsonLdEl.textContent = '{}';
                 } else {
+                    // Tertiary institutions get schema.org's more specific
+                    // CollegeOrUniversity type (a subtype of
+                    // EducationalOrganization) — this, plus logo/image/phone,
+                    // is what feeds Google's Knowledge Graph and improves the
+                    // odds of a richer result; it does not by itself create a
+                    // Google Business Profile-style knowledge panel (tabs,
+                    // reviews, hours, map) — that's a separate, free listing
+                    // claimed at business.google.com once the site is public.
                     jsonLdEl.textContent = JSON.stringify({
                         '@context': 'https://schema.org',
-                        '@type': 'EducationalOrganization',
+                        '@type': schoolMeta.type === 'Tertiary' ? 'CollegeOrUniversity' : 'EducationalOrganization',
                         name: schoolMeta.name,
                         description: desc,
                         url,
                         address: schoolMeta.address || schoolMeta.region || undefined,
+                        telephone: schoolMeta.contactPhone || undefined,
+                        email: schoolMeta.schoolEmail || undefined,
+                        logo: schoolMeta.badge ? logoUrl : undefined,
+                        image: ogImageUrl,
                     });
                 }
             }
@@ -9391,6 +10269,148 @@
             const robots = `User-agent: *\nAllow: /\nSitemap: ${new URL(url).origin}/sitemap.xml\n`;
             return { sitemap, robots };
         }
+
+        /* One combined sitemap.xml covering every discoverable school at once,
+           so hosting this file publicly only needs a single sitemap submitted
+           to Search Console / Bing Webmaster Tools, rather than one per
+           school. Demo schools and any school an owner switched to
+           "not discoverable" are left out. */
+        function allSchoolsSearchSetupFiles() {
+            const today = new Date().toISOString().slice(0, 10);
+            const schools = getSchools().filter(s => !s.isDemo && s.seoDiscoverable !== false && s.status !== 'suspended');
+            const urls = schools.map(s => `  <url>
+    <loc>${schoolAccessLink(s.id)}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+  </url>`).join('\n');
+            const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls || '  <!-- no discoverable schools yet -->'}
+</urlset>`;
+            const originGuess = schools[0] ? new URL(schoolAccessLink(schools[0].id)).origin : location.origin;
+            const robots = `User-agent: *\nAllow: /\nSitemap: ${originGuess}/sitemap.xml\n`;
+            return { sitemap, robots, schoolCount: schools.length };
+        }
+
+        /* security.txt (RFC 9116) — a standard, well-known location
+           (/.well-known/security.txt) researchers and automated scanners
+           check first when they want to report a vulnerability responsibly,
+           instead of guessing at a personal inbox or posting it publicly.
+           Uses the platform's own school-email domain rather than any
+           individual's real address, and expires in a year so it doesn't
+           go stale silently. */
+        function securityTxtContent() {
+            const expires = new Date();
+            expires.setFullYear(expires.getFullYear() + 1);
+            return `Contact: mailto:security@${SCHOOL_EMAIL_DOMAIN}\nExpires: ${expires.toISOString()}\nPreferred-Languages: en\n`;
+        }
+
+        /* Generates a 1200x630 link-preview banner (the standard og:image
+           size) for a given school as an SVG, then rasterizes it to a PNG
+           blob in-browser via <canvas> — most link-preview crawlers and
+           search engines expect a raster image, not SVG, at the og:image
+           URL, so this avoids that gap without needing a server or image
+           library. Uses the same ink/accent palette as the rest of the app. */
+        /* Embeds the school's own badge and (if uploaded) a real photo of the
+           school into the generated banner, so what search engines and link
+           previews show is the actual school — not a generic placeholder.
+           Falls back gracefully to the plain text/mark version when a
+           school hasn't uploaded a badge or any pictures yet. */
+        function schoolOgImageSVG(schoolMeta) {
+            const name = escapeHtml(schoolMeta.name || 'School');
+            const sub = escapeHtml(schoolMeta.region ? `${schoolMeta.region} · EduPortal` : 'EduPortal');
+            const heroPhoto = getSchoolPictures(schoolMeta)[0];
+            const badge = schoolMeta.badge || null;
+            const hasHero = !!(heroPhoto && heroPhoto.data);
+            return `<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="heroFade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1c2421" stop-opacity="0.1"/>
+      <stop offset="55%" stop-color="#1c2421" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#1c2421" stop-opacity="0.88"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="#f6f4ee"/>
+  ${hasHero ? `<image href="${heroPhoto.data}" x="0" y="0" width="1200" height="630" preserveAspectRatio="xMidYMid slice"/><rect width="1200" height="630" fill="url(#heroFade)"/>` : ''}
+  <rect x="0" y="0" width="1200" height="10" fill="#1f6e5c"/>
+  <text x="80" y="${hasHero ? 500 : 260}" font-family="Georgia, 'Source Serif 4', serif" font-size="58" font-weight="600" fill="${hasHero ? '#ffffff' : '#1c2421'}">${name}</text>
+  <text x="80" y="${hasHero ? 548 : 315}" font-family="'IBM Plex Sans', sans-serif" font-size="26" fill="${hasHero ? '#e8e5da' : '#6b6557'}">${sub}</text>
+  ${badge ? `<rect x="1006" y="66" width="128" height="128" rx="16" fill="#ffffff"/><image href="${badge}" x="1018" y="78" width="104" height="104" preserveAspectRatio="xMidYMid meet"/>` : `<circle cx="1080" cy="120" r="46" fill="#1f6e5c"/><text x="1080" y="132" font-family="'IBM Plex Sans', sans-serif" font-size="30" font-weight="700" fill="#fff" text-anchor="middle">EP</text>`}
+</svg>`;
+        }
+        /* A square logo-only file (schema.org's "logo" field wants a plain
+           mark, not the wide banner) — the school's own badge if uploaded,
+           else a lettered placeholder in the app's colours. Downloaded
+           alongside the banner from Search Setup and expected at
+           /og-images/{id}-logo.png. */
+        function schoolLogoSVG(schoolMeta) {
+            const initial = escapeHtml((schoolMeta.name || '?').trim().slice(0, 1).toUpperCase());
+            const badge = schoolMeta.badge || null;
+            return `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="48" fill="#ffffff"/>
+  ${badge ? `<image href="${badge}" x="24" y="24" width="464" height="464" preserveAspectRatio="xMidYMid meet"/>` : `<rect width="512" height="512" rx="48" fill="#1f6e5c"/><text x="256" y="300" font-family="'IBM Plex Sans', sans-serif" font-size="220" font-weight="700" fill="#fff" text-anchor="middle">${initial}</text>`}
+</svg>`;
+        }
+        function downloadSchoolLogoPng(schoolMeta) {
+            const svgText = schoolLogoSVG(schoolMeta);
+            const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 512; canvas.height = 512;
+                canvas.getContext('2d').drawImage(img, 0, 0, 512, 512);
+                URL.revokeObjectURL(svgUrl);
+                canvas.toBlob((blob) => {
+                    if (!blob) return;
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${schoolMeta.id}-logo.png`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                }, 'image/png');
+            };
+            img.onerror = () => URL.revokeObjectURL(svgUrl);
+            img.src = svgUrl;
+        }
+        /* Shared by the Owner Console's "Search Setup" button and the
+           self-serve version on a Tertiary school's own Dean/IT Overview —
+           generates this school's sitemap, robots.txt, link-preview banner
+           (now baked with its real badge + a photo, if set) and a square
+           logo file, then explains exactly where each one needs to end up
+           once the site is hosted somewhere public. */
+        function downloadSchoolSearchSetup(s) {
+            const { sitemap, robots } = schoolSearchSetupFiles(s);
+            downloadTextFile(`${s.id}-sitemap.xml`, sitemap);
+            downloadTextFile(`${s.id}-robots.txt`, robots);
+            downloadSchoolOgImagePng(s);
+            downloadSchoolLogoPng(s);
+            const hasBadge = !!s.badge, hasPhoto = getSchoolPictures(s).length > 0;
+            const principalLbl = s.type === 'Tertiary' ? (TERTIARY_ROLE_LABEL.principal || 'Dean') : 'Principal';
+            alert(`Downloaded sitemap.xml, robots.txt, a link-preview banner (${s.id}.png) and a logo (${s.id}-logo.png) for ${s.name}.${hasBadge || hasPhoto ? `\n\nThe banner now includes ${[hasPhoto ? 'the school photo' : '', hasBadge ? 'the school badge' : ''].filter(Boolean).join(' and ')} you already added on the ${principalLbl}/IT Overview — re-download here any time after changing either.` : `\n\nNo badge or photos are set for this school yet — the banner used a plain placeholder. Add them from the ${principalLbl} or IT Overview page, then come back and re-download for the real thing.`}\n\nThese only get the school found on Google/Bing/etc. once this page is hosted at a real public web address (e.g. GitHub Pages, Netlify, the school's own domain) — a Claude artifact link or a file opened locally can't be crawled by search engines. Once hosted:\n1. Put sitemap.xml and robots.txt in the site's root folder.\n2. Put ${s.id}.png AND ${s.id}-logo.png inside an "og-images" folder at the site's root, so they're reachable at /og-images/${s.id}.png and /og-images/${s.id}-logo.png — the exact paths this page's meta tags and structured data point to for this school.\n3. Submit the site + sitemap in Google Search Console and Bing Webmaster Tools.\nUntil then, the link still works great when shared directly, or pasted into WhatsApp/Facebook/etc. — those will show the school's name and description from the link preview (the image will just be missing until step 2 is done).\n\nNote: the rich Google listing with tabs, reviews, hours and a map (like a Google Business Profile) is a separate free Google product, not something this file's SEO tags create on their own — claim/create that listing at business.google.com once the site is hosted; the structured data here just helps Google understand the page correctly when it does.`);
+        }
+        function downloadSchoolOgImagePng(schoolMeta) {
+            const svgText = schoolOgImageSVG(schoolMeta);
+            const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+            const svgUrl = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 1200; canvas.height = 630;
+                canvas.getContext('2d').drawImage(img, 0, 0, 1200, 630);
+                URL.revokeObjectURL(svgUrl);
+                canvas.toBlob((blob) => {
+                    if (!blob) { alert('Could not generate the image in this browser — try Chrome/Edge/Firefox.'); return; }
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `${schoolMeta.id}.png`;
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                }, 'image/png');
+            };
+            img.onerror = () => { URL.revokeObjectURL(svgUrl); alert('Could not render the preview image in this browser.'); };
+            img.src = svgUrl;
+        }
         function downloadTextFile(filename, content) {
             const blob = new Blob([content], { type: 'text/plain' });
             const a = document.createElement('a');
@@ -9398,6 +10418,87 @@
             a.download = filename;
             a.click();
             URL.revokeObjectURL(a.href);
+        }
+
+        /* ---------------- CSV export ----------------
+           Generic helper used by Gradebook, Attendance, and Fees screens.
+           Quotes any field containing a comma, quote, or newline per the
+           standard CSV escaping rule. */
+        function rowsToCSV(headers, rows) {
+            const esc = (v) => {
+                const s = v == null ? '' : String(v);
+                return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+            };
+            const lines = [headers.map(esc).join(',')];
+            rows.forEach(r => lines.push(r.map(esc).join(',')));
+            return lines.join('\n');
+        }
+        function downloadCSV(filename, headers, rows) {
+            const blob = new Blob([rowsToCSV(headers, rows)], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        /* ---------------- PWA files (manifest.json / service-worker.js) ----------------
+           This page already references both (see <link rel="manifest"> in
+           <head> and the service worker registration below) but, being a
+           single HTML file, can't ship them as separate files on its own.
+           These generators produce ready-to-use copies from the Owner
+           Console so "Add to Home Screen" and basic offline caching
+           actually work once hosted — drop both at the site's root. */
+        function generateManifestJson() {
+            return JSON.stringify({
+                name: 'EduPortal', short_name: 'EduPortal', start_url: '.', display: 'standalone',
+                background_color: '#f6f4ee', theme_color: '#1f6e5c',
+                icons: [{ src: 'icons/eduportal-icon.svg', sizes: 'any', type: 'image/svg+xml' }]
+            }, null, 2);
+        }
+        function generateServiceWorkerJs() {
+            return `// Minimal offline cache for EduPortal. Caches this page's own shell so it
+// still opens (read-only, last-loaded data) with no connection. Data itself
+// keeps syncing through the app's normal cloud storage layer once back
+// online — this only covers the app shell, not a full offline data store.
+const CACHE = 'eduportal-shell-v1';
+self.addEventListener('install', (e) => {
+    e.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(['./', './index.html'])).catch(() => { }));
+    self.skipWaiting();
+});
+self.addEventListener('activate', (e) => {
+    e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
+});
+self.addEventListener('fetch', (e) => {
+    if (e.request.method !== 'GET') return;
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+});
+`;
+        }
+
+        /* ---------------- WhatsApp guardian alerts ----------------
+           No API/account needed — wa.me just opens WhatsApp (app or web)
+           with a pre-filled message the sender still has to hit Send on.
+           Numbers are normalized by stripping everything but digits and
+           assuming Eswatini's country code (268) when a local 8-digit
+           number is given without one. */
+        function guardianWhatsAppLink(phone, message) {
+            let digits = (phone || '').replace(/\D/g, '');
+            if (!digits) return null;
+            if (digits.length === 8) digits = '268' + digits;
+            return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+        }
+
+        /* ---------------- Audit log (Owner Console) ----------------
+           Lightweight "who changed what, when" trail for the handful of
+           high-impact Owner actions (school suspend/activate/delete, owner
+           password changes). Stored in OwnerDB (shared cloud storage), not
+           per-school DB, since these are cross-school/platform events. */
+        function getAuditLog() { return arr(OwnerDB.get('auditLog', [])); }
+        function logAuditEvent(action, details) {
+            const log = getAuditLog();
+            log.push({ id: uid('audit'), action, details: details || '', at: new Date().toISOString() });
+            OwnerDB.set('auditLog', log.slice(-500));
         }
 
         /* ================= LIVE CALLS (WebRTC audio & video) =================
