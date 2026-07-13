@@ -1,0 +1,8 @@
+name = "eduportal-sync-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Secrets (set with `wrangler secret put <NAME>`, not stored here):
+#   GITHUB_TOKEN  — the fine-grained PAT with Contents read/write on your data repo
+#   PROXY_KEY     — any shared secret string; EduPortal must send the same value
+#                    back in the X-Proxy-Key header

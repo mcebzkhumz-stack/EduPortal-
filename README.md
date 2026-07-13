@@ -1,59 +1,38 @@
 # EduPortal
 
-A single-file, multi-school education platform (StudyMate — EduPortal Core). Everything the app needs to run lives in `index.html`; the other files in this repo make it deployable and keep a hosted copy auto-updating.
+Single-file school management and e-learning platform (StudyMate — EduPortal Core).
 
-## 1. Push this to a repository
+## Deploy to GitHub Pages
 
-```bash
-git init
-git add .
-git commit -m "Initial EduPortal deployment package"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<your-repo>.git
-git push -u origin main
-```
+1. Push this repo's contents (`index.html`, `.nojekyll`) to a GitHub repository.
+2. In the repo: **Settings → Pages → Build and deployment → Source** = `Deploy from a branch`.
+3. Branch = `main` (or your default), folder = `/ (root)`. Save.
+4. Wait a minute, then visit `https://<your-username>.github.io/<repo-name>/`.
 
-## 2. Turn on GitHub Pages (one-time)
+`.nojekyll` is included so GitHub Pages serves the file as-is without Jekyll processing (important since the file contains characters/paths Jekyll could otherwise mangle).
 
-In the repo on GitHub: **Settings → Pages → Build and deployment → Source → GitHub Actions**.
+## Firebase (optional — enables cross-device Full Data Sync)
 
-That's it — no branch to pick, no folder to point at. The workflow in `.github/workflows/deploy.yml` handles the rest.
+Without configuration, EduPortal runs fully client-side on `localStorage`. To enable shared/synced storage across devices:
 
-## 3. Auto-sync / auto-deploy
-
-From here on, deployment is automatic:
-
-- Every push to `main` triggers `.github/workflows/deploy.yml`, which stamps the real commit SHA and deploy time into `index.html` (replacing the `__BUILD_SHA__` / `__BUILD_DATE__` placeholders) and publishes the site to GitHub Pages. Live in a minute or two after every push — no manual "deploy" step.
-- The small build-info line in the bottom-right corner of the live app confirms which commit is actually running.
-- You can also trigger a deploy manually from the **Actions** tab (`Deploy EduPortal to GitHub Pages → Run workflow`).
-
-This covers *code* deploys. The app also has its own **data** auto-sync, configured from inside the app itself (Owner Console):
-
-- **GitHub Registry Sync** — mirrors the school directory to a JSON file in a repo of your choice, pushed automatically on every register/edit/suspend/activate/delete.
-- **Full Data Sync** — mirrors the entire app database (one JSON file per school), pushed automatically on any change anywhere in the app, using GitHub's Git Data API so it isn't capped at 1MB.
-
-Both need a GitHub Personal Access Token, entered once in the Owner Console:
-1. Create a **fine-grained token** at https://github.com/settings/tokens/new, scoped to only the repo you want the data pushed to, with Contents read/write.
-2. In EduPortal: Owner Console → **GitHub Registry Sync** (and/or **Full Data Sync**) → paste the token, repo owner, repo name, branch, and file path(s) → Save.
-3. From then on it syncs itself — no further manual steps.
-
-If you'd rather not keep the token in the browser at all, use the optional Cloudflare Worker proxy in `proxy/` instead (see `proxy/worker.js` for setup) and point the "Route through a proxy" fields at it.
-
-## Files in this repo
-
-| Path | Purpose |
-|---|---|
-| `index.html` | The entire app — UI, logic, and storage layer |
-| `manifest.json` | PWA manifest (Add to Home Screen) |
-| `service-worker.js` | Minimal offline app-shell cache |
-| `icons/eduportal-icon.svg` | App icon (favicon, home-screen icon, Windows tile) |
-| `browserconfig.xml` | Windows tile config |
-| `.nojekyll` | Tells GitHub Pages to serve the site as-is, no Jekyll processing |
-| `.github/workflows/deploy.yml` | Auto-deploys to Pages on every push |
-| `proxy/` | Optional Cloudflare Worker so a GitHub token doesn't have to sit in the browser |
+1. Create a free Firebase project at https://console.firebase.google.com.
+2. Project settings → General → Your apps → Web app (`</>`) → copy the config object.
+3. Open `index.html`, find `const FIREBASE_CONFIG = {...}` (search for `PASTE_YOUR_API_KEY_HERE`), and paste in your real values.
+4. Firestore Database → Create database → Production mode → pick a region.
+5. Firestore → Rules → publish:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /eduportal_kv/{docId} {
+         allow read, write: if true;
+       }
+     }
+   }
+   ```
+6. Commit and push. The app auto-detects a configured `apiKey` and switches from localStorage to Firestore-backed sync.
 
 ## Notes
 
-- This is a static, client-only app — there's no backend server. Data lives in the browser (and, optionally, wherever you point the GitHub sync or a Firebase project) rather than on GitHub Pages itself.
-- If you ever change the app's branding, regenerate `icons/eduportal-icon.svg` to match — nothing else needs to change, since `manifest.json` and the `<head>` links already point at that fixed path.
-- `manifest.json` and `service-worker.js` here match what the app's own Owner Console can (re)generate and download, if you ever need to recreate them from scratch.
+- Everything (HTML, CSS, JS) lives in `index.html`; the only external requests are the two Firebase SDK `<script>` tags loaded from `gstatic.com`, which only matter if you've filled in `FIREBASE_CONFIG`.
+- Validated: JS parses cleanly (`node --check`), HTML has no duplicate IDs or unclosed tags, and CSS/link markup passes HTML5 validation (the validator's `inset` / `aspect-ratio` / `scrollbar-width` "unknown property" warnings are false positives from an outdated CSS spec list — all three are standard, widely supported properties).

@@ -17,7 +17,7 @@
         content="EduPortal — school management and learning portal for learners, teachers, administrators, and owners.">
     <meta name="keywords"
         content="school portal, learning platform, education management, student portal, teacher portal, school management system">
-    <link id="seoCanonical" rel="canonical" href="">
+    <link id="seoCanonical" rel="canonical">
     <meta id="ogType" property="og:type" content="website">
     <meta id="ogTitle" property="og:title" content="StudyMate — EduPortal Core">
     <meta id="ogDescription" property="og:description"
@@ -2684,7 +2684,7 @@
            PRN0001, DPT0001, ADM0001, LIB0001…) assigned automatically the
            first time it's saved, and a passwordHash (SHA-256, set on that
            person's first sign-in) that gates entry into the school portal. */
-        const ROLE_PREFIX = { student: 'STU', teacher: 'TCH', principal: 'PRN', deputy: 'DPT', admin: 'ADM', librarian: 'LIB', it: 'ITM', parent: 'PAR' };
+        const ROLE_PREFIX = { student: 'STU', teacher: 'TCH', principal: 'PRN', deputy: 'DPT', admin: 'ADM', librarian: 'LIB', it: 'ITM' };
         function assignMissingUsernames(usersArr) {
             if (!Array.isArray(usersArr)) return;
             Object.keys(ROLE_PREFIX).forEach(role => {
@@ -3348,14 +3348,91 @@
         function getGithubConfig() { return OwnerDB.get('githubSyncConfig', null) || {}; }
         function saveGithubConfig(cfg) { return OwnerDB.set('githubSyncConfig', cfg); }
         function githubConfigured() { const c = getGithubConfig(); return !!(c.token && c.owner && c.repo && c.path); }
+
+        /* ---- GitHub auto-connect ----
+           This app already knows exactly one repository it could ever want
+           to talk to: whichever one is serving this page. When hosted on
+           GitHub Pages (https://OWNER.github.io/REPO/...), OWNER and REPO
+           are baked into the URL itself, so there's no reason to make the
+           Owner type them in by hand, and no way for this copy of the app
+           to drift onto some other repository by accident or typo — every
+           GitHub read/write the app ever makes (registry sync, full data
+           sync, restore) goes through getGithubConfig(), so filling in
+           owner/repo/branch here confines all of it to this one repo.
+           Runs once at boot, right after the cloud cache loads (so it can't
+           be clobbered by a slower cloud read finishing after it, and
+           doesn't fight loadCloudCache() over the same OwnerDB key).
+           The Personal Access Token is deliberately never auto-filled — it's
+           a secret and this is a public static file, so it can't safely be
+           baked in. The Owner still pastes a token into the GitHub Registry
+           Sync panel once; from that moment everything else — which repo,
+           which branch, which file paths, turning full sync on — is already
+           wired up and confined to this repository without further setup. */
+        function detectGithubPagesRepo() {
+            try {
+                const host = location.hostname || '';
+                const m = host.match(/^([a-z0-9-]+)\.github\.io$/i);
+                if (!m) return null; // not on GitHub Pages (Claude.ai, a custom domain, opened from disk, etc.) — nothing to infer
+                const owner = m[1];
+                const seg = (location.pathname || '/').split('/').filter(Boolean);
+                // Project pages live at OWNER.github.io/REPO/...; a user/org
+                // page (OWNER.github.io itself) has no extra path segment —
+                // its repo is conventionally named "OWNER.github.io".
+                const repo = seg.length ? seg[0] : `${owner}.github.io`;
+                return { owner, repo };
+            } catch (e) { return null; }
+        }
+        function autoConnectGithubRepo() {
+            const detected = detectGithubPagesRepo();
+            if (!detected) return;
+            const cfg = getGithubConfig();
+            // An Owner who has explicitly pointed this at a different repo
+            // (unusual, but supported — e.g. mirroring data somewhere other
+            // than the site's own repo) gets that choice respected forever.
+            if (cfg.manualOverride) return;
+            if (cfg.owner === detected.owner && cfg.repo === detected.repo && cfg.branch && cfg.autoDetected) return; // already correctly wired up
+            saveGithubConfig({
+                ...cfg,
+                owner: detected.owner,
+                repo: detected.repo,
+                branch: cfg.branch || 'main',
+                path: cfg.path || 'eduportal-schools.json',
+                emailsPath: cfg.emailsPath || 'eduportal-school-emails.json',
+                fullPath: cfg.fullPath || 'eduportal-data',
+                fullSyncEnabled: cfg.fullSyncEnabled !== false,
+                autoDetected: true,
+            });
+        }
         function b64EncodeUtf8(str) { return btoa(unescape(encodeURIComponent(str))); }
         function b64DecodeUtf8(str) { return decodeURIComponent(escape(atob(str.replace(/\n/g, '')))); }
+        /* Shared by every Contents API call below (schools file, emails
+           file) so registry sync gets the exact same proxy protection the
+           Git Data API path (githubApiRequest, full backup sync) already
+           has. Previously only the full-sync path respected proxyUrl —
+           registry/emails sync always talked to api.github.com directly
+           with the raw token attached client-side, silently bypassing the
+           proxy even when one was configured. Fixed so ALL GitHub traffic
+           goes through the proxy (token stays server-side) whenever
+           proxyUrl is set, and falls back to a direct token-bearing request
+           only when no proxy is configured. */
+        function githubContentsRequestInfo(path) {
+            const cfg = getGithubConfig();
+            if (cfg.proxyUrl) {
+                const url = cfg.proxyUrl.replace(/\/+$/, '') + '/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) + '/' + path;
+                const headers = { Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+                if (cfg.proxyKey) headers['X-Proxy-Key'] = cfg.proxyKey;
+                return { url, headers };
+            }
+            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/${path}`;
+            const headers = { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' };
+            return { url, headers };
+        }
         async function githubGetSchoolsFile() {
             const cfg = getGithubConfig();
-            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${cfg.path}?ref=${encodeURIComponent(cfg.branch || 'main')}`;
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' } });
+            const { url, headers } = githubContentsRequestInfo(`contents/${cfg.path}?ref=${encodeURIComponent(cfg.branch || 'main')}`);
+            const res = await fetch(url, { headers });
             if (res.status === 404) return { sha: null, schools: [] };
-            if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub read failed (${res.status}): ${t.slice(0, 200)}`); }
             const data = await res.json();
             let list = [];
             try { list = JSON.parse(b64DecodeUtf8(data.content || '')); if (!Array.isArray(list)) list = []; } catch (e) { list = []; }
@@ -3363,10 +3440,10 @@
         }
         async function githubPutSchoolsFile(payload, sha, message) {
             const cfg = getGithubConfig();
-            const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${cfg.path}`;
+            const { url, headers } = githubContentsRequestInfo(`contents/${cfg.path}`);
             const body = { message: message || 'EduPortal: sync school registry', content: b64EncodeUtf8(JSON.stringify(payload, null, 2)), branch: cfg.branch || 'main' };
             if (sha) body.sha = sha;
-            const res = await fetch(url, { method: 'PUT', headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const res = await fetch(url, { method: 'PUT', headers, body: JSON.stringify(body) });
             if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub write failed (${res.status}): ${t.slice(0, 200)}`); }
             return res.json();
         }
@@ -3388,7 +3465,7 @@
             const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path}?ref=${encodeURIComponent(cfg.branch || 'main')}`;
             const res = await fetch(url, { headers: { Authorization: `Bearer ${cfg.token}`, Accept: 'application/vnd.github+json' } });
             if (res.status === 404) return { sha: null };
-            if (!res.ok) throw new Error(`GitHub read failed (${res.status})`);
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub read failed (${res.status}): ${t.slice(0, 200)}`); }
             const data = await res.json();
             return { sha: data.sha };
         }
@@ -3470,6 +3547,34 @@
             const c = getGithubConfig();
             const hasAuth = c.proxyUrl ? true : !!c.token;
             return !!(hasAuth && c.owner && c.repo && c.fullSyncEnabled !== false && (c.fullPath || 'eduportal-data'));
+        }
+        function timeAgoLabel(iso) {
+            if (!iso) return '';
+            const diffMs = Date.now() - new Date(iso).getTime();
+            const mins = Math.round(diffMs / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+            const hrs = Math.round(mins / 60);
+            if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+            const days = Math.round(hrs / 24);
+            return `${days} day${days === 1 ? '' : 's'} ago`;
+        }
+        /* Classifies the Full Data Sync panel's current state into one status
+           card, the same way the Search Engine Discoverability panel surfaces
+           a single colored summary instead of scattered status lines. Tones:
+           'off' (not configured), 'paused' (configured but the checkbox is
+           unchecked — actionable), 'busy', 'error', or 'ok'. */
+        function fullDataSyncStatusInfo() {
+            const c = getGithubConfig();
+            const hasAuth = c.proxyUrl ? true : !!c.token;
+            const credsPresent = !!(hasAuth && c.owner && c.repo);
+            if (fullSyncBusy) return { tone: 'busy', message: '⏳ Syncing the full database with GitHub…' };
+            if (fullRestoreBusy) return { tone: 'busy', message: '⏳ Restoring from GitHub…' };
+            if (!credsPresent) return { tone: 'off', message: 'Not set up yet — add a token, owner and repo above (they\u2019re shared with the registry sync) to start mirroring everything automatically.' };
+            if (c.fullSyncEnabled === false) return { tone: 'paused', message: 'Full data sync is paused — credentials are saved, but the "Enable full data sync" checkbox below is unchecked, so only the lightweight registry syncs right now.' };
+            if (c.lastFullSyncError) return { tone: 'error', message: `Last attempt failed: ${c.lastFullSyncError}` };
+            if (c.lastFullSyncAt) return { tone: 'ok', message: `✓ Full auto-sync is on — last synced ${timeAgoLabel(c.lastFullSyncAt)}${c.lastFullSyncFileCount ? ` (${c.lastFullSyncFileCount} files)` : ''}. Every change anywhere in EduPortal pushes automatically.` };
+            return { tone: 'ok', message: '✓ Full auto-sync is on — nothing has changed since it was turned on yet, so there\u2019s no push logged. It\u2019ll fire on the next change anywhere in EduPortal, or push a backup now below.' };
         }
         function fullBackupFolder() {
             const c = getGithubConfig();
@@ -3881,7 +3986,7 @@
         /* ---- Owner Console: broadcast to all schools ----
            Posts a single School-wide announcement into every registered
            school's own announcements board in one go, so the Owner can reach
-           every student/teacher/parent across the whole platform (e.g. a
+           every student/teacher/staff member across the whole platform (e.g. a
            public-holiday notice, a platform-maintenance heads-up) without
            entering each school individually. Keeps a short local log of what
            was sent and when, purely for the Owner's own reference. */
@@ -4512,7 +4617,7 @@
                 ? `<span class="muted" style="font-size:12px;">${label}</span>`
                 : `<a href="#" data-prelogin-view="${view}" style="font-size:12px;">${label}</a>`;
             return `<p class="login-hint" style="text-align:center; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        ${link('signin', 'Sign In')} · ${link('apply', 'Apply for Admission')} · ${link('prospectus', 'Prospectus')} · ${link('faculties', 'Faculties & Institutes')} · ${link('profile', 'School Profile')}
+        ${link('signin', 'Sign In')} · ${link('apply', 'Apply for Admission')} · ${link('prospectus', 'Prospectus')} · ${link('faculties', 'Faculties & Institutes')} · ${link('profile', 'School Profile')} · <a href="#" id="allSchoolsLink" style="font-size:12px;">All Schools</a>
       </p>`;
         }
         function wireTertiaryPublicNavLinks(container) {
@@ -4520,6 +4625,8 @@
                 e.preventDefault();
                 goToPublicView(a.dataset.preloginView);
             }));
+            const allSchoolsLink = container.querySelector('#allSchoolsLink');
+            if (allSchoolsLink) allSchoolsLink.addEventListener('click', (e) => { e.preventDefault(); backToLanding(); });
         }
         function renderSignInForm() {
             const gate = document.getElementById('loginGateView');
@@ -4548,7 +4655,7 @@
           <p class="login-hint" style="text-align:center;">Don't know your username? Ask your school administrator.</p>
           <p class="login-hint" style="text-align:center;">No password on your account yet? Just sign in with your username \u2014 you can set a password from inside the portal any time.</p>
           ${tertiaryPublicNavLinks('signin')}
-          ${!schoolIdFromLink() ? `<p class="login-hint" style="text-align:center;"><a href="#" id="notYourSchoolLink">Not your school?</a></p>` : ''}
+          <p class="login-hint" style="text-align:center;"><a href="#" id="notYourSchoolLink">Not your school? Search all schools</a></p>
         </div>`;
             wirePwEyeButtons(gate);
             wireTertiaryPublicNavLinks(gate);
@@ -5261,10 +5368,6 @@
                 if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
                 return new Date(b.postedAt) - new Date(a.postedAt);
             });
-            if (user.role === 'parent') {
-                const childClasses = new Set(childrenFor(user).map(c => c.class).filter(Boolean));
-                return all.filter(a => a.audience === 'School-wide' || childClasses.has(a.audience));
-            }
             if (user.role !== 'student') return all;
             return all.filter(a => a.audience === 'School-wide' || (hasFullAccess() || a.audience === user.class));
         }
@@ -5551,9 +5654,8 @@
                merged in automatically by computeNav() below, since IT always
                has full-access status — see hasFullAccess(). */
             it: [['overview', 'IT Overview'], ['accounts', 'Account Management'], ['contactOwner', 'Contact Owner Console'], ['announcements', 'Announcements'], ['calendar', 'Calendar'], ['duties', 'Role Duties'], ['calls', 'Video & Audio Calls']],
-            parent: [['overview', 'My Children'], ['attendance', 'Attendance'], ['grades', 'Grades'], ['fees', 'Fees'], ['announcements', 'Announcements'], ['calendar', 'Calendar'], ['duties', 'Role Duties']],
         };
-        const ROLE_LABEL = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy Head', admin: 'School Administrator', librarian: 'Librarian', it: 'IT Management', parent: 'Parent / Guardian' };
+        const ROLE_LABEL = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy Head', admin: 'School Administrator', librarian: 'Librarian', it: 'IT Management' };
 
         /* Top-left role tabs — order, display label */
         const ROLE_TABS = [
@@ -5564,7 +5666,6 @@
             ['admin', 'Administration'],
             ['librarian', 'Librarian'],
             ['it', 'IT Management'],
-            ['parent', 'Parent / Guardian'],
         ];
 
         /* ---- Tertiary Academic Suite: nav/label overrides ----
@@ -5586,7 +5687,7 @@
             const custom = schoolCustomRoles(currentSchoolMeta()).find(r => r.key === key);
             return custom ? custom.label : key;
         }
-        const ROLE_TAB_SHORT = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy', admin: 'Admin', librarian: 'Librarian', it: 'IT', parent: 'Parent' };
+        const ROLE_TAB_SHORT = { student: 'Student', teacher: 'Teacher', principal: 'Principal', deputy: 'Deputy', admin: 'Admin', librarian: 'Librarian', it: 'IT' };
 
         /* ---- Per-school interface customization ----
            Each school record can carry disabledRoles (role tabs hidden from
@@ -5724,7 +5825,7 @@
 
         /* Announcements & Calendar share one implementation across every role —
            permissions inside each function branch on user.role. */
-        ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it', 'parent'].forEach(role => {
+        ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it'].forEach(role => {
             window[`render_${role}_announcements`] = (main, user) => render_announcements_page(main, user);
             window[`render_${role}_calendar`] = (main, user) => render_calendar_page(main, user);
             window[`render_${role}_duties`] = (main, user) => renderDutiesPage(main, user);
@@ -7156,7 +7257,6 @@
             <option value="admin">School Administrator</option>
             <option value="librarian">Librarian</option>
             <option value="it">IT Management</option>
-            <option value="parent">Parent / Guardian</option>
             ${customRoleOpts}
           </select>
         </div>
@@ -7171,7 +7271,7 @@
     </div>
     <div class="panel">
       <h3 style="font-size:16px;">Bulk import users</h3>
-      <p class="muted" style="margin-top:0;">Upload a .csv/.txt file or paste rows below, one user per line, formatted as <code>Name, Role, Class or Subject, Guardian Name, Guardian Phone, Guardian Email</code>. Guardian columns only apply to students (email is optional). For a parent/guardian row, put the child's username (or exact name, if importing together) in the third column: <code>Name, parent, STU0001</code>. Valid roles: student, teacher, principal, deputy, admin, librarian, it, parent.</p>
+      <p class="muted" style="margin-top:0;">Upload a .csv/.txt file or paste rows below, one user per line, formatted as <code>Name, Role, Class or Subject, Guardian Name, Guardian Phone, Guardian Email</code>. Guardian columns only apply to students and are optional. Valid roles: student, teacher, principal, deputy, admin, librarian, it.</p>
       <label>Upload file (optional)</label>
       <input type="file" id="userImportFile" accept=".csv,.txt">
       <label>Or paste rows</label>
@@ -7199,8 +7299,6 @@
         <div><label>Guardian email (optional)</label><input type="text" id="regGuardianEmail" placeholder="e.g. thandi@example.com"></div>`;
                 } else if (role === 'teacher') {
                     extraWrap.innerHTML = `<div><label>Subject</label><input type="text" id="regClass" placeholder="e.g. Mathematics" list="regSubjectList">${subjectsDatalist('regSubjectList')}</div>`;
-                } else if (role === 'parent') {
-                    extraWrap.innerHTML = `<div><label>Child's username</label><input type="text" id="regChildUsername" placeholder="e.g. STU0001"></div>`;
                 } else {
                     extraWrap.innerHTML = '';
                 }
@@ -7229,14 +7327,6 @@
                     newUser.guardianEmail = guardianEmail;
                 }
                 if (role === 'teacher') newUser.subject = extraVal;
-                if (role === 'parent') {
-                    const childInput = main.querySelector('#regChildUsername');
-                    const childUsername = (childInput ? childInput.value : '').trim().toUpperCase();
-                    if (!childUsername) { alert("Enter your child's username."); return; }
-                    const child = getUsers().find(u => (u.username || '').toUpperCase() === childUsername && u.role === 'student');
-                    if (!child) { alert('No student found with that username. Check with the school office.'); return; }
-                    newUser.linkedStudentIds = [child.id];
-                }
                 const allUsers = getUsers();
                 allUsers.push(newUser);
                 DB.set('users', allUsers);
@@ -7250,7 +7340,7 @@
                 };
             });
 
-            const VALID_ROLES = ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it', 'parent'];
+            const VALID_ROLES = ['student', 'teacher', 'principal', 'deputy', 'admin', 'librarian', 'it'];
             const importFile = main.querySelector('#userImportFile');
             const importText = main.querySelector('#userImportText');
             const importStatus = main.querySelector('#userImportStatus');
@@ -7286,17 +7376,6 @@
                         newUser.guardianEmail = guardianEmail;
                     }
                     if (role === 'teacher') newUser.subject = extra;
-                    if (role === 'parent') {
-                        // Column 3 (extra) is the child's username if already
-                        // assigned, otherwise falls back to matching an exact
-                        // student name already in this batch/roster — covers
-                        // importing a parent row before that student has a
-                        // username assigned yet.
-                        const query = extra.toUpperCase();
-                        const child = allUsers.find(u => u.role === 'student' && ((u.username || '').toUpperCase() === query || u.name.toLowerCase() === extra.toLowerCase()));
-                        if (!child) { skipped++; return; }
-                        newUser.linkedStudentIds = [child.id];
-                    }
                     allUsers.push(newUser);
                     added++;
                 });
@@ -7991,7 +8070,7 @@
 
         /* ---------------- ANNOUNCEMENTS (Notice board) ---------------- */
         function render_announcements_page(main, user) {
-            const canPost = user.role !== 'student' && user.role !== 'parent';
+            const canPost = user.role !== 'student';
             const notices = visibleAnnouncementsFor(user);
             main.innerHTML = `<div class="eyebrow">Notice board</div><h2>Announcements</h2>
     ${canPost ? `<div class="panel">
@@ -9439,19 +9518,6 @@
            page works identically for a real logged-in account and for Owner
            Access impersonation. */
         const DUTIES = {
-            parent: {
-                school: [
-                    ['Check your child\u2019s attendance record regularly.', 'attendance'],
-                    ['Review quiz and assignment grades on the Grades tab.', 'grades'],
-                    ['Keep an eye on your child\u2019s fee balance, if applicable.', 'fees'],
-                    ['Read school announcements and keep an eye on the calendar for events.', 'announcements'],
-                ],
-                tertiary: [
-                    ['Check your child\u2019s attendance and grade summaries.', 'attendance'],
-                    ['Keep an eye on fee clearance status, which can block module registration.', 'fees'],
-                    ['Read faculty/Senate announcements and keep an eye on the academic calendar.', 'announcements'],
-                ],
-            },
             student: {
                 school: [
                     ['Keep up with class materials and the course topic checklist your teacher publishes.', 'materials'],
@@ -9601,109 +9667,6 @@
             });
         }
 
-        /* ---------------- PARENT / GUARDIAN PORTAL ----------------
-           Read-only view scoped to whichever student(s) this account is
-           linked to (user.linkedStudentIds). Linking happens at
-           registration (parent enters their child's username) and can be
-           extended later from the overview tab. Reuses the same summary
-           helpers the Student/Teacher/Principal screens already rely on
-           (studentGradeSummary, attendanceSummaryFor, feeAccountFor) so
-           there's nothing new to keep in sync. */
-        function childrenFor(user) {
-            const ids = Array.isArray(user.linkedStudentIds) ? user.linkedStudentIds : (user.linkedStudentId ? [user.linkedStudentId] : []);
-            return ids.map(id => getUsers().find(u => u.id === id && u.role === 'student')).filter(Boolean);
-        }
-        function linkChildToParent(parentUser, childUsername) {
-            const username = (childUsername || '').trim().toUpperCase();
-            if (!username) return { ok: false, error: "Enter the child's username." };
-            const child = getUsers().find(u => (u.username || '').toUpperCase() === username && u.role === 'student');
-            if (!child) return { ok: false, error: 'No student found with that username.' };
-            const users = getUsers();
-            const idx = users.findIndex(u => u.id === parentUser.id);
-            if (idx === -1) return { ok: false, error: 'Account not found.' };
-            const existing = Array.isArray(users[idx].linkedStudentIds) ? users[idx].linkedStudentIds : [];
-            if (existing.includes(child.id)) return { ok: false, error: `${child.name} is already linked to this account.` };
-            users[idx].linkedStudentIds = [...existing, child.id];
-            saveUsers(users);
-            authedUser = users[idx];
-            return { ok: true, child };
-        }
-        function render_parent_overview(main, user) {
-            const kids = childrenFor(user);
-            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>My Children</h2>
-    ${kids.length === 0 ? '<div class="empty">No children linked to this account yet. Add one below using their school username (e.g. STU0001) — ask the school office if you don\'t have it.</div>' : `<div class="grid2">
-      ${kids.map(k => {
-                const att = attendanceSummaryFor(k.id);
-                const grade = studentGradeSummary(k.id);
-                const fee = feeAccountFor(k.id);
-                return `<div class="panel">
-          <h3 style="font-size:16px; margin:0 0 4px;">${escapeHtml(k.name)}</h3>
-          <p class="muted" style="margin:0 0 10px;">${escapeHtml(k.class || '\u2014')}${k.username ? ' · ' + k.username : ''}</p>
-          <p style="margin:4px 0;">Attendance: <strong>${att.rate != null ? att.rate + '%' : '\u2014'}</strong> <span class="muted">(${att.total || 0} record${(att.total || 0) === 1 ? '' : 's'})</span></p>
-          <p style="margin:4px 0;">Overall grade: <strong>${grade.combined != null ? grade.combined + '%' : '\u2014'}</strong></p>
-          <p style="margin:4px 0;">Fees: ${fee.cleared ? '<span class="tag good">Cleared</span>' : `<span class="tag bad">Balance E${(fee.balance || 0).toFixed(2)}</span>`}</p>
-        </div>`;
-            }).join('')}
-    </div>`}
-    <div class="panel" style="margin-top:16px;">
-      <h3 style="font-size:15px; margin:0;">Link a child</h3>
-      <p class="muted" style="margin-top:0;">Enter your child's school username to add them to this account. You can link more than one child.</p>
-      <div style="display:flex; gap:8px;">
-        <input type="text" id="parentLinkUsername" placeholder="e.g. STU0001" style="flex:1;">
-        <button class="btn small" id="parentLinkBtn">Link child</button>
-      </div>
-      <p class="muted" id="parentLinkStatus" style="margin-top:8px;"></p>
-    </div>`;
-            main.querySelector('#parentLinkBtn').onclick = () => {
-                const result = linkChildToParent(user, main.querySelector('#parentLinkUsername').value);
-                const status = main.querySelector('#parentLinkStatus');
-                if (!result.ok) { status.textContent = result.error; status.style.color = 'var(--bad)'; return; }
-                render();
-            };
-        }
-        function render_parent_attendance(main, user) {
-            const kids = childrenFor(user);
-            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>Attendance</h2>
-    ${kids.length === 0 ? '<div class="empty">No children linked yet — add one from the My Children tab.</div>' : kids.map(k => {
-                const rows = getAttendance().filter(r => r.studentId === k.id).sort((a, b) => new Date(b.date) - new Date(a.date));
-                return `<div class="panel">
-        <h3 style="font-size:15px; margin:0 0 8px;">${escapeHtml(k.name)}</h3>
-        ${rows.length === 0 ? '<p class="muted">No attendance records yet.</p>' : `<table><thead><tr><th>Date</th><th>Status</th><th>Notes</th></tr></thead><tbody>
-          ${rows.map(r => `<tr><td>${r.date}</td><td><span class="tag ${r.status === 'present' ? 'good' : r.status === 'late' ? 'scheduled' : 'bad'}">${r.status}</span></td><td class="muted">${escapeHtml(r.notes || '\u2014')}</td></tr>`).join('')}
-        </tbody></table>`}
-      </div>`;
-            }).join('')}`;
-        }
-        function render_parent_grades(main, user) {
-            const kids = childrenFor(user);
-            const assignments = getAssignments();
-            const quizzes = getQuizzes();
-            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>Grades</h2>
-    ${kids.length === 0 ? '<div class="empty">No children linked yet — add one from the My Children tab.</div>' : kids.map(k => {
-                const quizSubs = getSubmissions().filter(s => s.studentId === k.id);
-                const asgSubs = getAssignmentSubs().filter(s => s.studentId === k.id && s.grade != null && s.grade !== '');
-                const summary = studentGradeSummary(k.id);
-                return `<div class="panel">
-        <h3 style="font-size:15px; margin:0 0 4px;">${escapeHtml(k.name)}</h3>
-        <p class="muted" style="margin:0 0 10px;">Overall: <strong>${summary.combined != null ? summary.combined + '%' : 'No grades yet'}</strong></p>
-        ${quizSubs.length ? `<p style="margin:6px 0 2px; font-weight:600; font-size:13px;">Quizzes</p><table><thead><tr><th>Quiz</th><th>Score</th></tr></thead><tbody>
-          ${quizSubs.map(s => { const q = quizzes.find(x => x.id === s.quizId); return `<tr><td>${q ? escapeHtml(q.title) : 'Quiz'}</td><td>${s.score}/${s.total}</td></tr>`; }).join('')}
-        </tbody></table>` : ''}
-        ${asgSubs.length ? `<p style="margin:10px 0 2px; font-weight:600; font-size:13px;">Assignments</p><table><thead><tr><th>Assignment</th><th>Grade</th></tr></thead><tbody>
-          ${asgSubs.map(s => { const a = assignments.find(x => x.id === s.assignmentId); return `<tr><td>${a ? escapeHtml(a.title) : 'Assignment'}</td><td>${s.grade}${a && a.maxScore ? '/' + a.maxScore : ''}</td></tr>`; }).join('')}
-        </tbody></table>` : ''}
-        ${!quizSubs.length && !asgSubs.length ? '<p class="muted">No graded work yet.</p>' : ''}
-      </div>`;
-            }).join('')}`;
-        }
-        function render_parent_fees(main, user) {
-            const kids = childrenFor(user);
-            main.innerHTML = `<div class="eyebrow">Parent / Guardian</div><h2>Fees</h2>
-    ${kids.length === 0 ? '<div class="empty">No children linked yet — add one from the My Children tab.</div>' : `<div class="panel"><table><thead><tr><th>Child</th><th>Status</th><th>Balance</th></tr></thead><tbody>
-      ${kids.map(k => { const fee = feeAccountFor(k.id); return `<tr><td>${escapeHtml(k.name)}</td><td>${fee.cleared ? '<span class="tag good">Cleared</span>' : '<span class="tag bad">Outstanding</span>'}</td><td>E${(fee.balance || 0).toFixed(2)}</td></tr>`; }).join('')}
-    </tbody></table></div>`}
-    <p class="muted" style="margin-top:10px;">Fee tracking only applies to schools using the fee/registration module (mainly Tertiary-style schools) — this may read as cleared with a zero balance for other schools.</p>`;
-        }
         const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Exam Period'];
         function render_admin_timetable(main, user) {
             const tertiary = isTertiary();
@@ -10387,6 +10350,17 @@ ${justRegisteredPanel}
     <div class="panel">
       <h3 style="font-size:16px; margin:0 0 4px;">GitHub Registry Sync</h3>
       <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the school directory (name, school email, region, type, status) to a JSON file in a GitHub repository, plus a second, simpler file with just every school's email — so school names/emails can be recognized and added there too. Optional and off until you fill this in.</p>
+      ${(() => {
+                const detected = detectGithubPagesRepo();
+                if (!detected) return '';
+                if (githubCfg.autoDetected && githubCfg.owner === detected.owner && githubCfg.repo === detected.repo) {
+                    return `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">🔗 Auto-connected to <strong>${escapeHtml(detected.owner)}/${escapeHtml(detected.repo)}</strong> — detected from this page's own GitHub Pages address, so owner/repo/branch never need typing in. Paste a token below to finish switching sync on.</p>`;
+                }
+                if (githubCfg.manualOverride) {
+                    return `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--warn, var(--rule)); border-radius:6px; background:var(--accent-soft);">This is pointed at <strong>${escapeHtml(githubCfg.owner || '?')}/${escapeHtml(githubCfg.repo || '?')}</strong> instead of this page's own repo (${escapeHtml(detected.owner)}/${escapeHtml(detected.repo)}) — kept as-is because it was set deliberately. Clear the fields and save to hand control back to auto-connect.</p>`;
+                }
+                return '';
+            })()}
       ${githubConfigured() ? `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
         ${ownerSyncBusy ? '⏳ Syncing with GitHub…' : '✓ Auto-sync is on — every registration, edit, suspend/activate, or delete pushes both the full registry and the emails-only file to the repo automatically, no manual step needed.'}
       </p>` : ''}
@@ -10422,6 +10396,20 @@ ${justRegisteredPanel}
 
     <div class="panel">
       <h3 style="font-size:16px; margin:0 0 4px;">Full Data Sync — everything, not just schools</h3>
+      ${(() => {
+                const info = fullDataSyncStatusInfo();
+                const styles = {
+                    ok: { border: 'var(--rule)', bg: 'var(--accent-soft)', color: 'var(--accent)' },
+                    busy: { border: 'var(--rule)', bg: 'var(--accent-soft)', color: 'var(--ink)' },
+                    paused: { border: 'var(--warn)', bg: 'var(--warn-soft)', color: 'var(--ink)' },
+                    off: { border: 'var(--rule)', bg: 'var(--paper)', color: 'var(--muted)' },
+                    error: { border: 'var(--bad)', bg: 'rgba(179,64,44,0.08)', color: 'var(--ink)' },
+                }[info.tone];
+                return `<div style="margin:8px 0 14px; padding:10px 12px; border:1px solid ${styles.border}; background:${styles.bg}; border-radius:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <span style="font-size:12.5px; color:${styles.color};">${escapeHtml(info.message)}</span>
+        ${info.tone === 'paused' ? '<button type="button" class="btn small" id="resumeFullSyncBtn">Resume Full Data Sync</button>' : ''}
+      </div>`;
+            })()}
       <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the <strong>entire</strong> EduPortal database — every school's users, gradebooks, attendance, materials, announcements, discussion rooms, the Owner's own records, all of it — into a folder of JSON files in the same repository, one file per school plus one for the Owner's own records, so each school's changes stay in their own file and diff cleanly. Once turned on, it fires automatically after <em>any</em> change anywhere in the app, by anyone, not just from the Owner Console. Uses the same token / owner / repo / branch entered above.</p>
       <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">On by default alongside the registry sync above — once a token, owner and repo are saved, every school's full data syncs automatically too. Uncheck below only if you want the repository to hold just the lightweight school registry.</p>
       <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">Pushes via GitHub's Git Data API rather than the simple file API, so files aren't capped at 1MB — each can hold up to about 100MB. If two tabs push at the same moment, this automatically retries on top of whatever landed first rather than failing. Frequent changes are batched (a few seconds of quiet) so you don't get a commit per keystroke. Needs the school registry pushed at least once first (that's what creates the branch this relies on).</p>
@@ -10439,9 +10427,6 @@ ${justRegisteredPanel}
         <label style="margin-top:10px;">Proxy key</label>
         <input type="text" id="ghProxyKey" value="${escapeHtml(githubCfg.proxyKey || '')}" placeholder="Shared secret the worker checks for">
       </details>
-      ${githubFullSyncConfigured() ? `<p class="muted" style="font-size:12.5px; margin:12px 0 0; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">
-        ${fullSyncBusy ? '⏳ Syncing the full database with GitHub…' : (fullRestoreBusy ? '⏳ Restoring from GitHub…' : '✓ Full auto-sync is on — every change anywhere in EduPortal is pushed to the repo.')}
-      </p>` : ''}
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
         <button type="button" class="btn secondary small" id="ghFullSaveBtn">Save settings</button>
         <button type="button" class="btn small" id="ghFullPushBtn">Push full backup now</button>
@@ -10675,7 +10660,7 @@ ${justRegisteredPanel}
 
     <div class="panel">
       <h3 style="font-size:16px; margin:0 0 4px;">Broadcast to All Schools</h3>
-      <p class="muted" style="font-size:13px; margin:0 0 14px;">Posts a School-wide announcement into every registered school's notice board at once — reaches every student, teacher, and parent across the platform. Good for things like public-holiday notices or a heads-up about maintenance.</p>
+      <p class="muted" style="font-size:13px; margin:0 0 14px;">Posts a School-wide announcement into every registered school's notice board at once — reaches every student and staff member across the platform. Good for things like public-holiday notices or a heads-up about maintenance.</p>
       <div>
         <label>Title</label>
         <input type="text" id="bcTitle" placeholder="e.g. Schools closed Friday for national holiday">
@@ -10981,14 +10966,24 @@ ${justRegisteredPanel}
             if (ghTokenInput) wirePwEyeButtons(ghTokenInput.closest('.panel'));
             const ghSaveBtn = document.getElementById('ghSaveBtn');
             if (ghSaveBtn) ghSaveBtn.onclick = () => {
+                const owner = document.getElementById('ghOwner').value.trim();
+                const repo = document.getElementById('ghRepo').value.trim();
+                const detected = detectGithubPagesRepo();
+                // If the Owner typed in something other than this page's own
+                // repo, respect that on purpose from now on — auto-connect
+                // backs off and stops overwriting owner/repo on future boots.
+                // If they've typed the auto-detected repo back in (or left it
+                // as-is), auto-connect stays in control going forward.
+                const isAutoRepo = !!detected && owner === detected.owner && repo === detected.repo;
                 const cfg = {
                     ...getGithubConfig(),
                     token: document.getElementById('ghToken').value.trim(),
-                    owner: document.getElementById('ghOwner').value.trim(),
-                    repo: document.getElementById('ghRepo').value.trim(),
+                    owner, repo,
                     branch: document.getElementById('ghBranch').value.trim() || 'main',
                     path: document.getElementById('ghPath').value.trim() || 'eduportal-schools.json',
                     emailsPath: document.getElementById('ghEmailsPath').value.trim() || 'eduportal-school-emails.json',
+                    manualOverride: !isAutoRepo,
+                    autoDetected: isAutoRepo,
                 };
                 saveGithubConfig(cfg);
                 alert('GitHub sync settings saved.');
@@ -11009,6 +11004,12 @@ ${justRegisteredPanel}
             };
 
             // ---- GitHub Full Data Sync ----
+            const resumeFullSyncBtn = document.getElementById('resumeFullSyncBtn');
+            if (resumeFullSyncBtn) resumeFullSyncBtn.onclick = async () => {
+                saveGithubConfig({ ...getGithubConfig(), fullSyncEnabled: true });
+                renderOwner();
+                await runFullGithubSync('resumed from Owner Console');
+            };
             const ghFullSaveBtn = document.getElementById('ghFullSaveBtn');
             if (ghFullSaveBtn) ghFullSaveBtn.onclick = () => {
                 const cfg = {
@@ -12940,6 +12941,7 @@ self.addEventListener('fetch', (e) => {
 
         (async function boot() {
             await loadCloudCache();
+            autoConnectGithubRepo();
 
             appMode = NavDB.get('appMode', 'landing');
             currentSchoolId = NavDB.get('activeSchoolId', 'demo');
