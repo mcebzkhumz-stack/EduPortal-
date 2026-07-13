@@ -744,6 +744,350 @@
             color: var(--warn);
         }
 
+        /* ---------------- Public School Profile (knowledge-panel style) ---------------- */
+        .sp-wrap {
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 24px 18px 60px;
+        }
+
+        .sp-back-link {
+            font-size: 12.5px;
+            color: var(--muted);
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 14px;
+        }
+
+        .sp-back-link:hover {
+            color: var(--accent);
+        }
+
+        .sp-header-name {
+            font-family: var(--display);
+            font-size: 26px;
+            font-weight: 600;
+            margin: 0 0 4px;
+        }
+
+        .sp-header-meta {
+            color: var(--muted);
+            font-size: 13.5px;
+            margin: 0 0 2px;
+        }
+
+        .sp-status-open {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .sp-status-closed {
+            color: var(--bad);
+            font-weight: 600;
+        }
+
+        .sp-photo-strip {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            margin: 14px 0;
+            border-radius: 10px;
+            scrollbar-width: thin;
+        }
+
+        .sp-photo-strip img {
+            height: 180px;
+            width: auto;
+            max-width: 280px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+            background: var(--accent-soft);
+        }
+
+        .sp-photo-strip .sp-photo-placeholder {
+            height: 180px;
+            width: 280px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            background: var(--accent-soft);
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--display);
+            font-size: 15px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .sp-actions-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 16px 0;
+            text-align: center;
+        }
+
+        .sp-action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            color: var(--accent);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: var(--body);
+        }
+
+        .sp-action-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .sp-blurb {
+            background: var(--paper);
+            border: 1px solid var(--rule);
+            border-radius: 10px;
+            padding: 16px 18px;
+            font-size: 14.5px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .sp-info-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .sp-info-icon {
+            width: 22px;
+            flex-shrink: 0;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .sp-map-box {
+            width: 84px;
+            height: 64px;
+            border-radius: 8px;
+            background: var(--accent-soft);
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid var(--rule);
+        }
+
+        .sp-map-box::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(var(--rule) 1px, transparent 1px), linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+            background-size: 14px 14px;
+            opacity: .5;
+        }
+
+        .sp-map-pin {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -60%);
+            font-size: 20px;
+            color: var(--bad);
+        }
+
+        .sp-section {
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .sp-section summary {
+            padding: 13px 2px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14.5px;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sp-section summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .sp-section summary::after {
+            content: '⌄';
+            color: var(--muted);
+            font-size: 16px;
+        }
+
+        .sp-section[open] summary::after {
+            content: '⌃';
+        }
+
+        .sp-section-body {
+            padding: 0 2px 14px;
+            font-size: 13.5px;
+            color: var(--ink);
+            line-height: 1.55;
+            white-space: pre-wrap;
+        }
+
+        .sp-similar-row {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+        }
+
+        .sp-similar-card {
+            flex-shrink: 0;
+            width: 150px;
+            border: 1px solid var(--rule);
+            border-radius: 10px;
+            padding: 12px;
+            text-decoration: none;
+            color: var(--ink);
+            background: var(--panel);
+        }
+
+        .sp-similar-card:hover {
+            border-color: var(--accent);
+        }
+
+        .sp-similar-card img {
+            width: 34px;
+            height: 34px;
+            object-fit: contain;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .sp-similar-name {
+            font-size: 12.5px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        .sp-similar-meta {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .sp-sponsor-label {
+            font-size: 10.5px;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--muted);
+            margin-top: 22px;
+            margin-bottom: 6px;
+        }
+
+        /* ---- School Profile editor (Owner Console + Dean/Registrar tab) ---- */
+        .sp-photo-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .sp-photo-thumb {
+            position: relative;
+            width: 90px;
+            height: 68px;
+        }
+
+        .sp-photo-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid var(--rule);
+        }
+
+        .sp-photo-remove {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 1px solid var(--rule);
+            background: #fff;
+            color: var(--bad);
+            cursor: pointer;
+            font-size: 12px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .sp-photo-add {
+            width: 90px;
+            height: 68px;
+            border: 1px dashed var(--rule);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: var(--accent);
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .sp-hours-grid {
+            margin-top: 8px;
+        }
+
+        .sp-hours-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .sp-hours-day {
+            width: 84px;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .sp-hours-closed {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: var(--muted);
+            width: 90px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .sp-hours-closed input {
+            width: auto;
+        }
+
+        .sp-hours-time {
+            width: 78px;
+            flex-shrink: 0;
+        }
+
         .empty {
             color: var(--muted);
             font-size: 14px;
@@ -1494,10 +1838,12 @@
         #reportCardPrintArea { display: none; }
         @media print {
             body * { visibility: hidden; }
-            #reportCardPrintArea, #reportCardPrintArea * { visibility: visible; }
-            #reportCardPrintArea { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
+            #reportCardPrintArea, #reportCardPrintArea *,
+            #prospectusPrintArea, #prospectusPrintArea * { visibility: visible; }
+            #reportCardPrintArea, #prospectusPrintArea { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 24px; }
             .rc-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
             .rc-table th, .rc-table td { border: 1px solid #999; padding: 6px 8px; text-align: left; font-size: 12px; }
+            #prospectusPrintArea #prospectusPrintBtn, #prospectusPrintArea .login-hint { display: none; }
         }
         .rc-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1c2421; padding-bottom: 10px; margin-bottom: 14px; }
         .rc-sign-row { display: flex; justify-content: space-between; margin-top: 60px; }
@@ -2388,6 +2734,24 @@
             try { return fn(); } finally { currentSchoolId = prevId; }
         }
 
+        /* ---- Dominion: full override authority ----
+           Every per-school storage key that exists anywhere in the app, so the
+           Owner Console's Raw Data Override panel can read/write literally any
+           of a school's records directly — not just the bespoke editors for
+           announcements/materials/profile. This list is the Owner's complete
+           reach into a school's data; keep it in sync if a genuinely new
+           school-scoped key is introduced elsewhere in the app. */
+        const SCHOOL_DATA_KEYS = [
+            'users', 'academicCalendar', 'academicPlan', 'admissions', 'advisingMessages', 'aiDatabaseEntries', 'announcements',
+            'applications', 'assignmentSubs', 'assignments', 'attendance', 'budget',
+            'disciplineRecords', 'dutyRoster', 'events', 'feeAccounts', 'forumReplies',
+            'forumThreads', 'funds', 'glossary', 'groups', 'hods', 'inspections', 'inventory',
+            'itMessages', 'loans', 'materials', 'meetings', 'messages', 'prefects', 'programmes',
+            'quizzes', 'registrations', 'resources', 'resultBatches', 'roomMessages', 'rooms',
+            'schoolLog', 'schoolReturns', 'serviceRequests', 'stakeholders', 'submissions',
+            'tModules', 'timetable', 'topicCompletions', 'topics', 'turnConfig',
+        ].sort();
+
         function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
 
         /* ---------------- School badge (crest/logo) helper ----------------
@@ -3092,9 +3456,9 @@
            any school — schedules a push. Pushes are debounced (and capped
            at a max wait) so a burst of changes becomes one commit instead
            of one per keystroke.
-           Off by default — the Owner turns it on and points it at a file
-           path from the "Full Data Sync" panel, reusing the same
-           token/owner/repo/branch as the registry sync above. */
+           On by default once a token/owner/repo are saved — the Owner can
+           still uncheck "Enable full data sync" in the panel to opt back
+           out, keeping only the lightweight registry sync active. */
         const FULL_SYNC_DEBOUNCE_MS = 4000;
         const FULL_SYNC_MAX_WAIT_MS = 20000;
         let fullSyncBusy = false;
@@ -3105,7 +3469,7 @@
         function githubFullSyncConfigured() {
             const c = getGithubConfig();
             const hasAuth = c.proxyUrl ? true : !!c.token;
-            return !!(hasAuth && c.owner && c.repo && c.fullSyncEnabled && (c.fullPath || 'eduportal-data'));
+            return !!(hasAuth && c.owner && c.repo && c.fullSyncEnabled !== false && (c.fullPath || 'eduportal-data'));
         }
         function fullBackupFolder() {
             const c = getGithubConfig();
@@ -3344,6 +3708,33 @@
         }
         function schoolUserCount(id) { const u = readSchoolData(id, 'users', []); return Array.isArray(u) ? u.length : 0; }
 
+        /* ---- Dominion: identifier registry ----
+           Builds the searchable table of every entity ID in the system: each
+           school, plus every user account inside every school. Read-only view
+           — actual changes happen through Raw Data Override or the school's
+           own editors. */
+        function identifierRegistryTableHtml(schools, query) {
+            const rows = [];
+            schools.forEach(s => {
+                rows.push({ id: s.id, type: 'School', name: s.name, role: '—', school: s.name });
+                const users = readSchoolData(s.id, 'users', []);
+                (Array.isArray(users) ? users : []).forEach(u => {
+                    rows.push({ id: u.id, type: 'User', name: u.name || u.username || '(unnamed)', role: u.role || '—', school: s.name });
+                });
+            });
+            const q = (query || '').trim().toLowerCase();
+            const filtered = q ? rows.filter(r =>
+                String(r.id).toLowerCase().includes(q) ||
+                String(r.name).toLowerCase().includes(q) ||
+                String(r.role).toLowerCase().includes(q) ||
+                String(r.school).toLowerCase().includes(q)
+            ) : rows;
+            if (!filtered.length) return '<div class="empty">No matching identifiers.</div>';
+            return `<table><thead><tr><th>ID</th><th>Type</th><th>Name</th><th>Role</th><th>School</th></tr></thead><tbody>
+            ${filtered.slice(0, 300).map(r => `<tr><td style="font-family:monospace; font-size:12px;">${escapeHtml(r.id)}</td><td>${r.type}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.role)}</td><td>${escapeHtml(r.school)}</td></tr>`).join('')}
+            </tbody></table>${filtered.length > 300 ? `<p class="muted" style="font-size:12px; margin-top:8px;">Showing first 300 of ${filtered.length} matches — narrow your search to see more precisely.</p>` : ''}`;
+        }
+
         /* ---- Owner Console: activity log ----
            Lightweight, human-readable audit trail of actions taken from the
            Owner Console, so the Owner can see a running history of what
@@ -3570,10 +3961,18 @@
         let appMode = 'owner';
         let ownerState = {
             editingId: null, search: '', formOpen: false, badgeDraft: '', badgeDraftFor: undefined, itOpenSchool: null,
+            /* Set right after a new school is registered — drives the
+               "Registered ✓" confirmation panel showing its ready-made
+               shareable link and GitHub sync status. Cleared when the Owner
+               dismisses it, starts another registration, or edits a school. */
+            justRegistered: null,
             /* Direct content editor — lets the Owner view/add/delete a school's
                announcements & class materials right from the Owner Console,
                with no need to "Enter Portal" first. */
             contentSchoolId: null, contentTab: 'announcements',
+            /* Public School Profile editor — which Tertiary school is picked
+               in the dropdown (see the "Public School Profile" panel). */
+            profileSchoolId: null,
             /* Customize School Interface — per-school role/tab visibility toggles. */
             customizeSchoolId: null, customizeExpandedRole: null,
             /* Customize School Interface — adding brand-new roles/screens. */
@@ -3581,6 +3980,21 @@
             /* AI Assistant + local database workspace */
             aiPrompt: '', aiAssistantReply: 'Ask me about school statistics, saved records, or next actions.',
             aiDbTitle: '', aiDbCategory: 'General', aiDbDetails: '', aiDbSearch: '',
+            /* ---- Dominion: Raw Data Override ----
+               Lets the Owner read/write ANY storage key for ANY school directly,
+               beyond the bespoke editors above (announcements/materials/profile).
+               This is the Owner's "full override authority" panel. */
+            overrideSchoolId: null, overrideKey: '', overrideDraft: '', overrideError: '',
+            /* ---- Dominion: Identifier Registry ----
+               A searchable index of every entity ID in the system (schools and
+               every user inside every school) so the Owner can look up or
+               confirm any identifier at a glance. */
+            registrySearch: '',
+            /* ---- Dominion: Succession ----
+               Lets the Owner designate additional emails that can access the
+               Owner Console — a successor/backup owner — without editing
+               source code, and revoke that access later. */
+            successorEmailInput: '', successorLabelInput: '',
         };
 
         /* ---- Owner Access: full-control session flag ----
@@ -3618,6 +4032,45 @@
            so it never lingers into a different school or into a signed-in view. */
         let preLoginPublicView = null;
         let applyFormStatus = '';
+        /* Shown once on the landing directory when a ?school= link didn't match
+           any registered school (typo, deleted school, stale bookmark) — see
+           boot() below — instead of silently dropping the visitor onto the
+           generic directory with no explanation. */
+        let landingLinkNotice = null;
+
+        /* Keeps the visible address bar an accurate, shareable reflection of
+           "where am I" (which school, which public page) without turning this
+           into a full client-side router. Only ever touches the ?school= and
+           &view= query parameters — any storage-sync hash the app is using
+           stays untouched. Called on every navigation between schools/views so
+           that: (1) refreshing mid-session lands back in the same place, (2)
+           copying the address bar always produces a working link for someone
+           else, and (3) the browser's own Back/Forward buttons behave the way
+           a visitor expects instead of doing nothing. */
+        function syncLocationUrl(push) {
+            try {
+                const url = new URL(location.href);
+                if (appMode === 'school' && currentSchoolId) {
+                    url.searchParams.set('school', currentSchoolId);
+                    if (preLoginPublicView) url.searchParams.set('view', preLoginPublicView);
+                    else url.searchParams.delete('view');
+                } else {
+                    url.searchParams.delete('school');
+                    url.searchParams.delete('view');
+                }
+                const stateObj = { appMode, schoolId: currentSchoolId, view: preLoginPublicView };
+                if (push) history.pushState(stateObj, '', url.toString());
+                else history.replaceState(stateObj, '', url.toString());
+            } catch (e) { /* URL/History API unavailable — app still works, just without deep-linking */ }
+        }
+        /* Switches which public sub-page (Sign In / Apply / Prospectus /
+           Faculties / School Profile) is showing on a Tertiary school's login
+           gate, keeping the address bar and browser history in step with it. */
+        function goToPublicView(view) {
+            preLoginPublicView = (view === 'signin' ? null : view);
+            syncLocationUrl(true);
+            renderLoginGate();
+        }
 
         function enterSchool(id, opts) {
             seedSchoolIfNeeded(id);
@@ -3629,7 +4082,7 @@
             NavDB.set('ownerAccess', ownerAccess);
             authedUser = null;
             loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
-            preLoginPublicView = null;
+            preLoginPublicView = (opts && opts.initialView) || null;
             applyFormStatus = '';
             if (ownerAccess) {
                 const usersInSchool = DB.get('users', []);
@@ -3638,6 +4091,11 @@
                 const fallbackUser = usersArr[0] || { role: 'student', id: null };
                 state = { roleTab: firstStudent ? 'student' : fallbackUser.role, roleId: firstStudent ? firstStudent.id : fallbackUser.id, tab: null, roleMenuOpen: false, tabMenuOpen: false };
             }
+            // On the very first load (boot() resolving a ?school= link) the
+            // address bar already has the right URL, so replace rather than
+            // push — otherwise the visitor's very first Back tap would just
+            // reload the identical page instead of leaving.
+            syncLocationUrl(!(opts && opts.fromBoot));
             showView();
         }
         function backToOwnerConsole() {
@@ -3646,6 +4104,7 @@
             ownerAccess = false;
             NavDB.set('ownerAccess', false);
             authedUser = null;
+            syncLocationUrl(true);
             showView();
         }
         function signOut() {
@@ -3654,6 +4113,7 @@
             loginState = { mode: 'login', username: '', error: '', pendingUser: null, showPw: false, showPw1: false, showPw2: false };
             preLoginPublicView = null;
             applyFormStatus = '';
+            syncLocationUrl(true);
             showView();
         }
         function backToLanding() {
@@ -3665,6 +4125,7 @@
             landingIntendedRole = null;
             preLoginPublicView = null;
             applyFormStatus = '';
+            syncLocationUrl(true);
             showView();
         }
         function showView() {
@@ -3681,6 +4142,29 @@
             applySchoolTheme(schoolMetaForView);
             updateSEOMetaTags(schoolMetaForView);
             const signedIn = ownerAccess || !!authedUser;
+            // A school the Owner has suspended should say so plainly, rather
+            // than leaving a stale/shared link looking like an ordinary (if
+            // perhaps broken) sign-in screen. Owner Access still opens the
+            // portal normally so the Owner can review or reactivate it.
+            if (!signedIn && schoolMetaForView && schoolMetaForView.status === 'suspended') {
+                document.querySelector('#schoolView .topbar').style.display = 'none';
+                document.querySelector('#schoolView .layout').style.display = 'none';
+                const gate = document.getElementById('loginGateView');
+                gate.style.display = 'flex';
+                gate.innerHTML = `
+          <div class="login-card" style="text-align:center;">
+            <div class="brand" style="justify-content:center; margin-bottom:6px;">
+              <span class="mark">EP</span>
+            </div>
+            <h1 style="font-size:17px; margin:6px 0 4px;">Portal Unavailable</h1>
+            <p class="muted" style="font-size:13px; line-height:1.5;">${escapeHtml(schoolMetaForView.name)}'s EduPortal is not currently active. Please contact the school directly, or check back later.</p>
+            <p class="login-hint" style="margin-top:14px;"><a href="#" id="suspendedBackLink">Find another school</a></p>
+          </div>`;
+                const suspendedBack = document.getElementById('suspendedBackLink');
+                if (suspendedBack) suspendedBack.addEventListener('click', (e) => { e.preventDefault(); backToLanding(); });
+                if (typeof updateCallsBellVisibility === 'function') updateCallsBellVisibility();
+                return;
+            }
             document.querySelector('#schoolView .topbar').style.display = signedIn ? '' : 'none';
             document.querySelector('#schoolView .layout').style.display = signedIn ? '' : 'none';
             document.getElementById('loginGateView').style.display = signedIn ? 'none' : 'flex';
@@ -3722,15 +4206,18 @@
             const results = document.getElementById('landingResults');
             const label = document.getElementById('landingResultsLabel');
             const schools = getSchools().filter(s => s.status === 'active').sort((a, b) => a.name.localeCompare(b.name));
+            const noticeHtml = landingLinkNotice
+                ? `<div class="login-hint" style="background:var(--accent-soft); border-radius:8px; padding:8px 10px; margin-bottom:10px; text-align:center; font-size:12.5px;">${escapeHtml(landingLinkNotice)}</div>`
+                : '';
             if (!q) {
                 // Registration information first: every registered, active
                 // school is listed up front (name, school email, region) so a
                 // visitor can browse the directory before typing anything.
                 label.textContent = schools.length ? `${schools.length} registered school${schools.length === 1 ? '' : 's'}` : '';
-                results.innerHTML = schools.length
+                results.innerHTML = noticeHtml + (schools.length
                     ? schools.map(schoolResultCard).join('')
-                    : `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">No schools registered yet.</div>`;
-                results.querySelectorAll('.landing-result-btn').forEach(btn => { btn.onclick = () => enterSchool(btn.dataset.id); });
+                    : `<div style="text-align:center; color:var(--muted); font-size:13px; padding:8px 0;">No schools registered yet.</div>`);
+                results.querySelectorAll('.landing-result-btn').forEach(btn => { btn.onclick = () => { landingLinkNotice = null; enterSchool(btn.dataset.id); }; });
                 return;
             }
             const matches = schools.filter(s => s.name.toLowerCase().includes(q) || (s.schoolEmail || '').toLowerCase().includes(q));
@@ -3746,6 +4233,7 @@
         }
         document.getElementById('landingSearchInput').addEventListener('input', (e) => {
             landingSearch = e.target.value;
+            if (landingLinkNotice) landingLinkNotice = null;
             renderLanding();
         });
         document.getElementById('landingOwnerLink').addEventListener('click', openOwnerAuthModal);
@@ -3821,6 +4309,18 @@
             '31f252bc1225078d74c371139a951cfa58b8e0ddc5c7b25bc0a446b00004e487', // sha256 of first owner email
             '29dd24d260780074418da9772dd7aca85d62c063ddd8b2fbe1c129e1eaaf976f'  // sha256 of second owner email
         ];
+        /* ---- Dominion: succession ----
+           A second, editable allow-list living in shared cloud storage (not
+           hard-coded in source) so the Owner can grant — and later revoke —
+           full Owner Console access to a successor or backup owner from
+           inside the app itself, with no code edits or redeploy needed. Each
+           entry stores only the email's hash plus a human label the Owner
+           chose, never the plaintext email. */
+        function getSuccessorEntries() { const l = OwnerDB.get('successors', []); return Array.isArray(l) ? l : []; }
+        function saveSuccessorEntries(list) { return OwnerDB.set('successors', list); }
+        function isOwnerAllowedEmailHash(hash) {
+            return OWNER_ALLOWED_EMAIL_HASHES.includes(hash) || getSuccessorEntries().some(s => s.emailHash === hash);
+        }
         function openOwnerAuthModal() {
             const overlay = document.getElementById('ownerPwModalOverlay');
             overlay.style.display = 'flex';
@@ -3843,7 +4343,7 @@
                 e.preventDefault();
                 const email = document.getElementById('ownerGateEmail').value.trim().toLowerCase();
                 const emailHash = await sha256Hex(email);
-                if (!OWNER_ALLOWED_EMAIL_HASHES.includes(emailHash)) {
+                if (!isOwnerAllowedEmailHash(emailHash)) {
                     const errEl = document.getElementById('ownerGateError');
                     errEl.textContent = 'No staff account found for this email.';
                     errEl.style.display = '';
@@ -3970,7 +4470,7 @@
         document.getElementById('ownerChangePwBtn').addEventListener('click', openOwnerChangePasswordModal);
         document.getElementById('ownerSignOutBtn').addEventListener('click', backToLanding);
 
-        let state = { roleTab: 'student', roleId: 's1', tab: null, roleMenuOpen: false, tabMenuOpen: false };
+        let state = { roleTab: 'student', roleId: 's1', tab: null, roleMenuOpen: false, tabMenuOpen: false, advisingOpenId: null, plannerYear: '', plannerSem: 'Semester 1' };
 
         function getUsers() { const u = DB.get('users', []); return Array.isArray(u) ? u : []; }
         function getCurrentUser() { return getUsers().find(u => u.id === state.roleId); }
@@ -3996,7 +4496,9 @@
 
         function renderLoginGate() {
             if (isTertiary() && preLoginPublicView === 'apply') { renderApplyForm(); return; }
+            if (isTertiary() && preLoginPublicView === 'prospectus') { renderProspectus(); return; }
             if (isTertiary() && preLoginPublicView === 'faculties') { renderFacultiesDirectory(); return; }
+            if (isTertiary() && preLoginPublicView === 'profile') { renderSchoolProfilePage(); return; }
             renderSignInForm();
         }
         /* Small link row offered under the sign-in form, and used the same way
@@ -4010,14 +4512,13 @@
                 ? `<span class="muted" style="font-size:12px;">${label}</span>`
                 : `<a href="#" data-prelogin-view="${view}" style="font-size:12px;">${label}</a>`;
             return `<p class="login-hint" style="text-align:center; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
-        ${link('signin', 'Sign In')} · ${link('apply', 'Apply for Admission')} · ${link('faculties', 'Faculties & Institutes')}
+        ${link('signin', 'Sign In')} · ${link('apply', 'Apply for Admission')} · ${link('prospectus', 'Prospectus')} · ${link('faculties', 'Faculties & Institutes')} · ${link('profile', 'School Profile')}
       </p>`;
         }
         function wireTertiaryPublicNavLinks(container) {
             container.querySelectorAll('[data-prelogin-view]').forEach(a => a.addEventListener('click', (e) => {
                 e.preventDefault();
-                preLoginPublicView = a.dataset.preloginView === 'signin' ? null : a.dataset.preloginView;
-                renderLoginGate();
+                goToPublicView(a.dataset.preloginView);
             }));
         }
         function renderSignInForm() {
@@ -4082,6 +4583,11 @@
                 showView();
             });
         }
+        /* ---------------- Tertiary Academic Suite: campuses ----------------
+           The University of Eswatini (UNESWA) operates across three physical
+           campuses. Offered as the "Campus" choice on the public admission
+           application for Tertiary schools. */
+        const UNESWA_CAMPUSES = ['Kwaluseni Campus', 'Luyengo Campus', 'Mbabane Campus'];
         /* ---------------- Public "Apply Now" admission application ----------------
            Reachable from the login gate without any account, for Tertiary schools
            only. Submissions land in getApplications() for the Registrar to review
@@ -4104,9 +4610,28 @@
             <div><label>Full name</label><input type="text" id="apName" placeholder="Full name"></div>
             <div><label>Email</label><input type="email" id="apEmail" placeholder="you@example.com"></div>
             <div><label>Phone</label><input type="text" id="apPhone" placeholder="e.g. 7612 3456"></div>
-            <div><label>Programme applying for</label>
-              <select class="field" id="apProgramme">
-                ${programmes.length ? programmes.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.faculty ? ' — ' + escapeHtml(p.faculty) : ''}</option>`).join('') : '<option value="">No programmes published yet</option>'}
+            <div><label>Campus</label>
+              <select class="field" id="apCampus">
+                ${UNESWA_CAMPUSES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="eyebrow" style="margin-top:4px;">Programme choices \u2014 rank up to 3</div>
+            <div><label>1st choice (required)</label>
+              <select class="field" id="apProgramme1">
+                <option value="">${programmes.length ? 'Choose a programme\u2026' : 'No programmes published yet'}</option>
+                ${programmes.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.faculty ? ' \u2014 ' + escapeHtml(p.faculty) : ''}</option>`).join('')}
+              </select>
+            </div>
+            <div><label>2nd choice (optional)</label>
+              <select class="field" id="apProgramme2">
+                <option value="">No 2nd choice</option>
+                ${programmes.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.faculty ? ' \u2014 ' + escapeHtml(p.faculty) : ''}</option>`).join('')}
+              </select>
+            </div>
+            <div><label>3rd choice (optional)</label>
+              <select class="field" id="apProgramme3">
+                <option value="">No 3rd choice</option>
+                ${programmes.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.faculty ? ' \u2014 ' + escapeHtml(p.faculty) : ''}</option>`).join('')}
               </select>
             </div>
             <div><label>Previous school / institution</label><input type="text" id="apPrevSchool" placeholder="e.g. Salesian High School"></div>
@@ -4120,15 +4645,25 @@
                 const name = gate.querySelector('#apName').value.trim();
                 const email = gate.querySelector('#apEmail').value.trim();
                 const phone = gate.querySelector('#apPhone').value.trim();
-                const programmeId = gate.querySelector('#apProgramme').value;
-                if (!name || !email || !programmeId) {
-                    applyFormStatus = 'Please fill in your name, email, and choose a programme.';
+                const campus = gate.querySelector('#apCampus').value;
+                const choice1 = gate.querySelector('#apProgramme1').value;
+                const choice2 = gate.querySelector('#apProgramme2').value;
+                const choice3 = gate.querySelector('#apProgramme3').value;
+                if (!name || !email || !choice1) {
+                    applyFormStatus = 'Please fill in your name, email, and at least a 1st choice programme.';
+                    renderApplyForm();
+                    return;
+                }
+                const chosen = [choice1, choice2, choice3].filter(Boolean);
+                if (new Set(chosen).size !== chosen.length) {
+                    applyFormStatus = 'Each programme choice must be different \u2014 please review your selections.';
                     renderApplyForm();
                     return;
                 }
                 const applications = getApplications();
                 applications.push({
-                    id: uid('app'), name, email, phone, programmeId,
+                    id: uid('app'), name, email, phone, campus,
+                    programmeChoices: chosen, programmeId: choice1, // kept as the 1st choice for anything reading it directly
                     previousSchool: gate.querySelector('#apPrevSchool').value.trim(),
                     statement: gate.querySelector('#apStatement').value.trim(),
                     status: 'Pending', submittedAt: new Date().toISOString(),
@@ -4176,6 +4711,203 @@
             </div>`).join('')}
         </div>`;
             wireTertiaryPublicNavLinks(gate);
+        }
+
+        /* ---------------- Public Prospectus page ----------------
+           Reachable without an account (Tertiary schools only) — an
+           original, EduPortal-native prospectus compiled from the school's
+           own published data (programmes, campuses) plus general admissions
+           guidance, in the spirit of a real university prospectus. Not a
+           reproduction of any institution's actual prospectus document. */
+        function renderProspectus() {
+            const gate = document.getElementById('loginGateView');
+            const meta = getSchools().find(s => s.id === currentSchoolId);
+            const schoolName = meta ? meta.name : 'EduPortal';
+            const programmes = getProgrammes();
+            const byFaculty = {};
+            programmes.forEach(p => {
+                const f = p.faculty || 'Other Programmes';
+                (byFaculty[f] = byFaculty[f] || []).push(p);
+            });
+            const faculties = Object.keys(byFaculty).sort();
+            gate.innerHTML = `
+        <div class="login-card" id="prospectusPrintArea" style="max-width:520px;">
+          <div class="brand" style="justify-content:center; margin-bottom:6px;">
+            <span class="mark">EP</span>
+            <h1 style="font-size:17px; margin:0;">${escapeHtml(schoolName)}</h1>
+          </div>
+          <p class="muted" style="text-align:center; margin:6px 0 0;">Prospectus</p>
+          ${tertiaryPublicNavLinks('prospectus')}
+
+          <div class="panel" style="margin-top:14px;">
+            <div class="eyebrow">Welcome</div>
+            <p style="font-size:13.5px; line-height:1.6; margin:6px 0 0;">${escapeHtml(schoolName)} offers certificate, diploma, and degree programmes across a range of faculties. This prospectus is a guide to what we offer, where we're based, and how to apply — for full and current detail, always confirm with the Registrar's Office.</p>
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div class="eyebrow">Our Campuses</div>
+            <ul style="margin:8px 0 0; padding-left:18px; font-size:13.5px; line-height:1.7;">
+              ${UNESWA_CAMPUSES.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div class="eyebrow">Faculties &amp; Programmes</div>
+            ${faculties.length === 0 ? '<div class="empty" style="margin-top:8px;">No programmes published yet — check back soon.</div>' : faculties.map(f => `
+              <div style="margin-top:10px;">
+                <div style="font-weight:600; font-size:13.5px;">${escapeHtml(f)}</div>
+                <table style="margin-top:4px;"><tbody>
+                  ${byFaculty[f].map(p => `<tr>
+                    <td style="font-size:12.5px;">${escapeHtml(p.name)}</td>
+                    <td class="muted" style="font-size:12px; text-align:right; white-space:nowrap;">${escapeHtml(p.degreeType || '')}${p.durationYears ? ' · ' + p.durationYears + ' yrs' : ''}</td>
+                  </tr>`).join('')}
+                </tbody></table>
+              </div>`).join('')}
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div class="eyebrow">Admission Requirements</div>
+            <p style="font-size:13px; line-height:1.6; margin:6px 0 0;">Entry requirements vary by programme and are set by the relevant faculty. As a general guide, applicants are expected to have completed the appropriate secondary-level qualification (or equivalent) with results meeting the specific programme's minimum subject and grade requirements. The Registrar's Office can confirm exact requirements for any programme.</p>
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div class="eyebrow">How to Apply</div>
+            <ol style="margin:8px 0 0; padding-left:18px; font-size:13px; line-height:1.7;">
+              <li>Choose your campus and rank up to 3 programme choices.</li>
+              <li>Submit the online application with your personal statement and previous school details.</li>
+              <li>The Registrar's Office reviews your application and ranked choices.</li>
+              <li>If admitted, you'll receive a student number and account details to sign in.</li>
+            </ol>
+            <a href="#" data-prelogin-view="apply" class="btn small" style="display:inline-block; margin-top:10px; text-decoration:none;">Start an Application</a>
+          </div>
+
+          <div class="panel" style="margin-top:12px;">
+            <div class="eyebrow">Fees &amp; Financial Aid</div>
+            <p style="font-size:13px; line-height:1.6; margin:6px 0 0;">Tuition and fee structures vary by programme — the Registrar's Office / Bursary can provide a current fee schedule. Bursary applications, scholarship enquiries, and other sources of financial assistance are handled through Student Services once you're admitted.</p>
+          </div>
+
+          <div style="display:flex; justify-content:center; margin-top:16px;">
+            <button type="button" class="btn secondary small" id="prospectusPrintBtn">Print / Save as PDF</button>
+          </div>
+        </div>`;
+            wireTertiaryPublicNavLinks(gate);
+            const printBtn = document.getElementById('prospectusPrintBtn');
+            if (printBtn) printBtn.onclick = () => window.print();
+        }
+
+        /* ---------------- Public School Profile page ----------------
+           Reachable without an account from the sign-in screen's link row
+           (Tertiary schools only). Styled after a search-engine knowledge
+           panel: photo strip, quick actions, address/hours/phone, expandable
+           info sections, an FAQ accordion, and a row of similar schools. All
+           content comes from getSchoolProfile() — see that function's
+           comment for where it's edited. */
+        function schoolDirectionsUrl(meta) {
+            const q = encodeURIComponent(meta.address || meta.name || '');
+            return `https://www.google.com/maps/search/?api=1&query=${q}`;
+        }
+        function renderSchoolProfilePage() {
+            const gate = document.getElementById('loginGateView');
+            const meta = getSchools().find(s => s.id === currentSchoolId);
+            if (!meta) { renderSignInForm(); return; }
+            const schoolName = meta.name;
+            const profile = getSchoolProfile(meta);
+            const status = schoolOpenStatus(profile);
+            const sectionDefs = [
+                ['jobs', 'Jobs', profile.sections.jobs],
+                ['admissions', 'Admissions', profile.sections.admissions],
+                ['degreePrograms', 'Degree Programs', profile.sections.degreePrograms],
+                ['campus', 'Campus', profile.sections.campus],
+                ['about', 'About', profile.sections.about],
+                ['collegesSchools', 'Colleges and Schools', profile.sections.collegesSchools],
+            ].filter(([, , body]) => (body || '').trim().length > 0);
+            const similar = getSchools()
+                .filter(s => s.id !== meta.id && s.status !== 'suspended' && s.status !== 'pending')
+                .slice(0, 8);
+
+            gate.innerHTML = `
+      <div class="sp-wrap">
+        <a href="#" class="sp-back-link" id="spBackLink">‹ Back to Sign In</a>
+        <div class="panel" style="padding:20px;">
+          <h1 class="sp-header-name">${escapeHtml(schoolName)}</h1>
+          <p class="sp-header-meta">${escapeHtml(meta.type || 'Tertiary institution')}${meta.region ? ' in ' + escapeHtml(meta.region) : ''}</p>
+          <p class="sp-header-meta"><span class="${status.open ? 'sp-status-open' : 'sp-status-closed'}">${status.open ? 'Open' : 'Closed'}</span> · ${escapeHtml(status.label.replace(/^Open · |^Closed · /, ''))}</p>
+
+          <div class="sp-photo-strip">
+            ${meta.badge ? `<img src="${meta.badge}" alt="${escapeHtml(schoolName)} badge">` : ''}
+            ${profile.photos.map(src => `<img src="${src}" alt="${escapeHtml(schoolName)}">`).join('')}
+            ${(!meta.badge && profile.photos.length === 0) ? `<div class="sp-photo-placeholder">${escapeHtml(schoolName)}</div>` : ''}
+          </div>
+
+          <div class="sp-actions-row">
+            ${profile.phone ? `<a class="sp-action-btn" href="tel:${escapeHtml(profile.phone.replace(/[^0-9+]/g, ''))}"><span class="sp-action-icon">📞</span>Call</a>` : `<span class="sp-action-btn" style="opacity:.4;"><span class="sp-action-icon">📞</span>Call</span>`}
+            <a class="sp-action-btn" href="${schoolDirectionsUrl(meta)}" target="_blank" rel="noopener"><span class="sp-action-icon">🧭</span>Directions</a>
+            ${profile.website ? `<a class="sp-action-btn" href="${escapeHtml(profile.website)}" target="_blank" rel="noopener"><span class="sp-action-icon">🌐</span>Website</a>` : `<span class="sp-action-btn" style="opacity:.4;"><span class="sp-action-icon">🌐</span>Website</span>`}
+            <button type="button" class="sp-action-btn" id="spShareBtn"><span class="sp-action-icon">🔗</span>Share</button>
+          </div>
+
+          ${profile.tagline ? `<div class="sp-blurb">${escapeHtml(profile.tagline)}</div>` : ''}
+
+          ${meta.address ? `<div class="sp-info-row">
+            <div class="sp-map-box"><span class="sp-map-pin">📍</span></div>
+            <div><div style="font-size:14px;">${escapeHtml(meta.address)}</div><a href="${schoolDirectionsUrl(meta)}" target="_blank" rel="noopener" style="font-size:12.5px;">Get directions</a></div>
+          </div>` : ''}
+
+          <div class="sp-info-row" style="align-items:flex-start;">
+            <div class="sp-info-icon">🕒</div>
+            <details style="flex:1;">
+              <summary style="cursor:pointer; list-style:none;"><span class="${status.open ? 'sp-status-open' : 'sp-status-closed'}">${status.open ? 'Open' : 'Closed'}</span> · ${escapeHtml(status.label.replace(/^Open · |^Closed · /, ''))} <span class="muted" style="font-size:12px;">(hours)</span></summary>
+              <table style="margin-top:8px;"><tbody>
+                ${SP_DAYS.map(([k, label]) => `<tr><td style="padding:4px 10px 4px 0; font-size:12.5px;">${label}</td><td style="padding:4px 0; font-size:12.5px;">${profile.hours[k].closed ? 'Closed' : `${formatHourLabel(profile.hours[k].open)} – ${formatHourLabel(profile.hours[k].close)}`}</td></tr>`).join('')}
+              </tbody></table>
+            </details>
+          </div>
+
+          ${profile.phone ? `<div class="sp-info-row">
+            <div class="sp-info-icon">📞</div>
+            <a href="tel:${escapeHtml(profile.phone.replace(/[^0-9+]/g, ''))}" style="font-size:14px;">${escapeHtml(profile.phone)}</a>
+          </div>` : ''}
+        </div>
+
+        ${sectionDefs.length ? `<div class="panel" style="padding:6px 16px;">
+          ${sectionDefs.map(([key, label, body]) => `<details class="sp-section">
+            <summary>${escapeHtml(label)}</summary>
+            <div class="sp-section-body">${escapeHtml(body)}</div>
+          </details>`).join('')}
+        </div>` : ''}
+
+        ${profile.faqs.length ? `<div class="panel" style="padding:18px;">
+          <h3 style="font-size:16px; margin:0 0 6px;">People also ask</h3>
+          ${profile.faqs.map(f => `<details class="sp-section">
+            <summary>${escapeHtml(f.q)}</summary>
+            <div class="sp-section-body">${escapeHtml(f.a)}</div>
+          </details>`).join('')}
+        </div>` : ''}
+
+        ${similar.length ? `<div class="panel" style="padding:18px;">
+          <h3 style="font-size:16px; margin:0 0 10px;">Similar places</h3>
+          <div class="sp-similar-row">
+            ${similar.map(s => `<a class="sp-similar-card" href="${schoolAccessLink(s.id)}">
+              ${s.badge ? `<img src="${s.badge}" alt="">` : ''}
+              <div class="sp-similar-name">${escapeHtml(s.name)}</div>
+              <div class="sp-similar-meta">${escapeHtml(s.type || '')}${s.region ? ' · ' + escapeHtml(s.region) : ''}</div>
+            </a>`).join('')}
+          </div>
+          <div class="sp-sponsor-label">Similar schools on EduPortal</div>
+        </div>` : ''}
+
+        ${tertiaryPublicNavLinks('profile')}
+      </div>`;
+            wireTertiaryPublicNavLinks(gate);
+            const backLink = document.getElementById('spBackLink');
+            if (backLink) backLink.addEventListener('click', (e) => { e.preventDefault(); goToPublicView('signin'); });
+            const shareBtn = document.getElementById('spShareBtn');
+            if (shareBtn) shareBtn.addEventListener('click', async () => {
+                const url = schoolAccessLink(meta.id);
+                if (navigator.share) { try { await navigator.share({ title: schoolName, url }); return; } catch (e) { /* user cancelled — fall through to copy */ } }
+                try { await navigator.clipboard.writeText(url); shareBtn.querySelector('.sp-action-icon').textContent = '✓'; setTimeout(() => { shareBtn.querySelector('.sp-action-icon').textContent = '🔗'; }, 1500); }
+                catch (e) { alert(url); }
+            });
         }
 
         /* ---------------- In-portal Set/Change Password modal ----------------
@@ -4286,6 +5018,76 @@
             return !!meta && meta.type === 'Tertiary';
         }
 
+        /* ---- Public School Profile (Tertiary) ----
+           A Google-knowledge-panel-style public page for Tertiary schools,
+           reachable pre-login from the sign-in screen's link row (see
+           tertiaryPublicNavLinks). All content lives on the school's own
+           record under `profile`, so it's editable both from the Owner
+           Console (any school) and, in-portal, by that school's own
+           Dean/Principal or Registrar/Admin (see TERTIARY_NAV_EXTRA). */
+        const SP_DAYS = [['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'], ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday']];
+        function defaultSchoolHours() {
+            const weekday = { closed: false, open: '08:00', close: '17:00' };
+            const weekend = { closed: true, open: '', close: '' };
+            return { mon: { ...weekday }, tue: { ...weekday }, wed: { ...weekday }, thu: { ...weekday }, fri: { ...weekday }, sat: { ...weekend }, sun: { ...weekend } };
+        }
+        function defaultSchoolProfileSections() {
+            return { jobs: '', admissions: '', degreePrograms: '', campus: '', about: '', collegesSchools: '' };
+        }
+        /* Always returns a complete, defaulted profile object — callers never
+           need to null-check individual fields. Tagline falls back to the
+           school's existing SEO description so a school that never opens
+           the editor still shows something reasonable. */
+        function getSchoolProfile(meta) {
+            const p = (meta && meta.profile) || {};
+            return {
+                tagline: p.tagline || (meta && meta.seoDescription) || '',
+                website: p.website || '',
+                phone: p.phone || (meta && meta.contactPhone) || '',
+                photos: Array.isArray(p.photos) ? p.photos : [],
+                hours: (p.hours && typeof p.hours === 'object') ? { ...defaultSchoolHours(), ...p.hours } : defaultSchoolHours(),
+                sections: { ...defaultSchoolProfileSections(), ...(p.sections || {}) },
+                faqs: Array.isArray(p.faqs) ? p.faqs : [],
+            };
+        }
+        function formatHourLabel(h12) {
+            const m = /^(\d{1,2}):(\d{2})$/.exec((h12 || '').trim());
+            if (!m) return h12 || '';
+            let hour = Number(m[1]);
+            const min = m[2];
+            const suffix = hour >= 12 ? 'PM' : 'AM';
+            hour = hour % 12; if (hour === 0) hour = 12;
+            return `${hour}:${min} ${suffix}`;
+        }
+        /* Compares the visitor's current local time against today's entry in
+           the profile's weekly hours to decide the Open/Closed badge —
+           mirrors the "Closed · Opens 6:30 AM Mon" style status line. */
+        function schoolOpenStatus(profile) {
+            const now = new Date();
+            const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+            const todayKey = dayKeys[now.getDay()];
+            const today = profile.hours[todayKey];
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            const toMins = (t) => { const m = /^(\d{1,2}):(\d{2})$/.exec((t || '').trim()); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+            if (today && !today.closed) {
+                const openMins = toMins(today.open), closeMins = toMins(today.close);
+                if (openMins != null && closeMins != null && nowMins >= openMins && nowMins < closeMins) {
+                    return { open: true, label: `Open · Closes ${formatHourLabel(today.close)}` };
+                }
+            }
+            // Find the next day (starting today) that isn't closed, for the "Opens ..." message.
+            for (let i = 0; i < 7; i++) {
+                const key = dayKeys[(now.getDay() + i) % 7];
+                const entry = profile.hours[key];
+                if (entry && !entry.closed && entry.open) {
+                    const dayLabel = (SP_DAYS.find(d => d[0] === key) || [null, key])[1];
+                    const isToday = i === 0;
+                    return { open: false, label: `Closed · Opens ${formatHourLabel(entry.open)}${isToday ? ' today' : ' ' + dayLabel} ` };
+                }
+            }
+            return { open: false, label: 'Closed' };
+        }
+
         /* Southern-African-style percentage grading scale used across the
            Tertiary Academic Suite (distinction/merit/credit/pass bands with
            4.0-scale grade points for GPA/CGPA calculation). */
@@ -4328,6 +5130,25 @@
            counselling) submitted by students and handled by the Registrar's Office. */
         function getServiceRequests() { return arr(DB.get('serviceRequests', [])); }
         function saveServiceRequests(r) { return DB.set('serviceRequests', r); }
+        /* ---- Tertiary Academic Suite: advising ----
+           A student's assigned academic advisor (a Lecturer, set from the
+           Registrar Console) plus a lightweight message thread between the
+           two — the original-content equivalent of an "adviser" relationship
+           in a university system, built for EduPortal's own data model. */
+        function getAdvisingMessages() { return arr(DB.get('advisingMessages', [])); }
+        function saveAdvisingMessages(m) { return DB.set('advisingMessages', m); }
+        /* ---- Tertiary Academic Suite: academic planner ----
+           Lets a student sketch out which modules they intend to take in
+           future semesters/years — separate from actually registering — so
+           they can plan a path to graduation ahead of time. */
+        function getAcademicPlans() { return arr(DB.get('academicPlan', [])); }
+        function saveAcademicPlans(p) { return DB.set('academicPlan', p); }
+        function planFor(studentId) {
+            const plans = getAcademicPlans();
+            let p = plans.find(x => x.studentId === studentId);
+            if (!p) { p = { studentId, items: [] }; }
+            return p;
+        }
 
         function defaultAcademicCalendar() {
             const y = new Date().getFullYear();
@@ -4574,6 +5395,149 @@
             ];
         }
 
+        /* ---------------- School Profile editor ----------------
+           Shared markup + wiring for editing a school's public profile.
+           Called from two places: the Owner Console (any school, chosen from
+           a dropdown — see renderOwnerCore) and, in-portal, from that
+           school's own Dean/Principal or Registrar/Admin tab (scoped to
+           currentSchoolId — see render_principal_schoolProfile /
+           render_admin_schoolProfile below). Photo and FAQ list changes save
+           immediately; the text fields save together via the form button. */
+        function renderSchoolProfileEditorInto(container, schoolId) {
+            const schoolsArr = getSchools();
+            const school = schoolsArr.find(s => s.id === schoolId);
+            if (!school) { container.innerHTML = '<div class="empty">School not found.</div>'; return; }
+            const profile = getSchoolProfile(school);
+            container.innerHTML = `
+      <div class="eyebrow">Photos</div>
+      <div class="sp-photo-row" id="spPhotoRow">
+        ${profile.photos.map((src, i) => `<div class="sp-photo-thumb"><img src="${src}" alt=""><button type="button" class="sp-photo-remove" data-sp-photo-del="${i}" title="Remove photo">×</button></div>`).join('')}
+        <label class="sp-photo-add">+ Add<input type="file" accept="image/*" id="spPhotoFile" style="display:none;"></label>
+      </div>
+      <p class="muted" style="font-size:11.5px; margin-top:6px;">Shown in the photo strip on the public School Profile page. The school badge/crest (set on the school record itself) always appears first.</p>
+
+      <form id="spProfileForm" style="margin-top:16px;">
+        <div class="grid2">
+          <div><label>Public phone</label><input type="text" name="phone" value="${escapeHtml(profile.phone)}" placeholder="e.g. +268 2517 0000"></div>
+          <div><label>Website URL</label><input type="text" name="website" value="${escapeHtml(profile.website)}" placeholder="e.g. https://www.uneswa.ac.sz"></div>
+        </div>
+        <label>Short tagline <span class="muted" style="font-weight:400;">(shown right under the name on the public page)</span></label>
+        <textarea name="tagline" rows="2" placeholder="e.g. This 1983 research university is known for medicine, engineering &amp; business.">${escapeHtml(profile.tagline)}</textarea>
+
+        <div class="eyebrow" style="margin-top:18px;">Opening Hours</div>
+        <div class="sp-hours-grid">
+          ${SP_DAYS.map(([k, label]) => `
+            <div class="sp-hours-row">
+              <span class="sp-hours-day">${label}</span>
+              <label class="sp-hours-closed"><input type="checkbox" name="closed_${k}" ${profile.hours[k].closed ? 'checked' : ''}> Closed</label>
+              <input type="text" name="open_${k}" value="${escapeHtml(profile.hours[k].open || '')}" placeholder="08:00" class="sp-hours-time">
+              <span class="muted">–</span>
+              <input type="text" name="close_${k}" value="${escapeHtml(profile.hours[k].close || '')}" placeholder="17:00" class="sp-hours-time">
+            </div>`).join('')}
+        </div>
+
+        <div class="eyebrow" style="margin-top:18px;">Info Sections <span class="muted" style="font-weight:400; text-transform:none; letter-spacing:0;">(leave a section blank to hide it on the public page)</span></div>
+        <label>Jobs</label><textarea name="sec_jobs" rows="2" placeholder="e.g. Current vacancies and how to apply.">${escapeHtml(profile.sections.jobs)}</textarea>
+        <label>Admissions</label><textarea name="sec_admissions" rows="2" placeholder="e.g. Entry requirements and how to apply.">${escapeHtml(profile.sections.admissions)}</textarea>
+        <label>Degree Programs</label><textarea name="sec_degreePrograms" rows="2" placeholder="e.g. Overview of undergraduate and postgraduate programmes.">${escapeHtml(profile.sections.degreePrograms)}</textarea>
+        <label>Campus</label><textarea name="sec_campus" rows="2" placeholder="e.g. Facilities, residences, campus life.">${escapeHtml(profile.sections.campus)}</textarea>
+        <label>About</label><textarea name="sec_about" rows="2" placeholder="e.g. History and mission of the institution.">${escapeHtml(profile.sections.about)}</textarea>
+        <label>Colleges and Schools</label><textarea name="sec_collegesSchools" rows="2" placeholder="e.g. Faculties, colleges, and constituent schools.">${escapeHtml(profile.sections.collegesSchools)}</textarea>
+
+        <button type="submit" class="btn" style="margin-top:16px;">Save Profile</button>
+        <span class="muted" id="spSaveStatus" style="font-size:12.5px; margin-left:10px;"></span>
+      </form>
+
+      <div class="eyebrow" style="margin-top:22px;">People Also Ask (FAQs)</div>
+      <div id="spFaqList">
+        ${profile.faqs.length ? profile.faqs.map((f, i) => `<div class="qcard"><div class="qcard-head"><strong style="font-size:13.5px;">${escapeHtml(f.q)}</strong><button type="button" class="btn danger small" data-sp-faq-del="${i}">Remove</button></div><p class="muted" style="margin:6px 0 0; font-size:12.5px;">${escapeHtml(f.a)}</p></div>`).join('') : '<div class="empty">No FAQs yet.</div>'}
+      </div>
+      <div class="grid2" style="margin-top:10px;">
+        <div><label>Question</label><input type="text" id="spFaqQ" placeholder="e.g. What is the acceptance rate?"></div>
+        <div><label>Answer</label><input type="text" id="spFaqA" placeholder="Short answer"></div>
+      </div>
+      <button type="button" class="btn secondary small" id="spFaqAddBtn" style="margin-top:8px;">Add FAQ</button>
+
+      <p class="muted" style="font-size:12px; margin-top:18px;"><a href="${schoolAccessLink(school.id)}#profile" target="_blank" rel="noopener">Open this school's sign-in page</a> — the "School Profile" link under the sign-in form shows exactly what visitors see.</p>
+      `;
+
+            const persist = (mutator) => {
+                const arrS = getSchools();
+                const idx = arrS.findIndex(s => s.id === schoolId);
+                if (idx === -1) return;
+                const prof = getSchoolProfile(arrS[idx]);
+                mutator(prof);
+                arrS[idx] = { ...arrS[idx], profile: prof };
+                saveSchools(arrS);
+                if (ownerAccess && typeof logOwnerActivity === 'function') logOwnerActivity('Updated school profile', arrS[idx].name);
+                if (typeof syncSchoolsToGithub === 'function') syncSchoolsToGithub(`updated school profile — ${arrS[idx].name}`);
+                renderSchoolProfileEditorInto(container, schoolId);
+            };
+
+            const photoFile = container.querySelector('#spPhotoFile');
+            if (photoFile) photoFile.onchange = () => {
+                const file = photoFile.files[0];
+                if (!file) return;
+                resizeImageToDataURL(file, 900, (dataUrl) => {
+                    if (!dataUrl) { alert("Couldn't read that image — try a different file."); return; }
+                    persist(prof => { prof.photos = [...prof.photos, dataUrl]; });
+                });
+            };
+            container.querySelectorAll('[data-sp-photo-del]').forEach(btn => btn.onclick = () => {
+                const i = Number(btn.dataset.spPhotoDel);
+                persist(prof => { prof.photos = prof.photos.filter((_, pi) => pi !== i); });
+            });
+
+            const faqAddBtn = container.querySelector('#spFaqAddBtn');
+            if (faqAddBtn) faqAddBtn.onclick = () => {
+                const q = container.querySelector('#spFaqQ').value.trim();
+                const a = container.querySelector('#spFaqA').value.trim();
+                if (!q || !a) { alert('Enter both a question and an answer.'); return; }
+                persist(prof => { prof.faqs = [...prof.faqs, { q, a }]; });
+            };
+            container.querySelectorAll('[data-sp-faq-del]').forEach(btn => btn.onclick = () => {
+                const i = Number(btn.dataset.spFaqDel);
+                persist(prof => { prof.faqs = prof.faqs.filter((_, fi) => fi !== i); });
+            });
+
+            const form = container.querySelector('#spProfileForm');
+            if (form) form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const fd = new FormData(form);
+                persist(prof => {
+                    prof.phone = (fd.get('phone') || '').toString().trim();
+                    prof.website = (fd.get('website') || '').toString().trim();
+                    prof.tagline = (fd.get('tagline') || '').toString().trim();
+                    const hours = {};
+                    SP_DAYS.forEach(([k]) => {
+                        hours[k] = { closed: fd.get('closed_' + k) === 'on', open: (fd.get('open_' + k) || '').toString().trim(), close: (fd.get('close_' + k) || '').toString().trim() };
+                    });
+                    prof.hours = hours;
+                    prof.sections = {
+                        jobs: (fd.get('sec_jobs') || '').toString().trim(),
+                        admissions: (fd.get('sec_admissions') || '').toString().trim(),
+                        degreePrograms: (fd.get('sec_degreePrograms') || '').toString().trim(),
+                        campus: (fd.get('sec_campus') || '').toString().trim(),
+                        about: (fd.get('sec_about') || '').toString().trim(),
+                        collegesSchools: (fd.get('sec_collegesSchools') || '').toString().trim(),
+                    };
+                });
+            });
+        }
+
+        /* In-portal editors — Dean/Principal and Registrar/Admin both get a
+           School Profile tab (Tertiary only, added via TERTIARY_NAV_EXTRA)
+           that edits the current school's own profile, no dropdown needed. */
+        function renderSchoolProfileTab(main, user) {
+            const meta = currentSchoolMeta();
+            main.innerHTML = `<div class="eyebrow">Public Page</div><h2>School Profile</h2>
+    <p class="muted">Edit the public "School Profile" page visitors see before signing in for ${meta ? escapeHtml(meta.name) : 'this school'}.</p>
+    <div class="panel" id="schoolProfileTabBody"></div>`;
+            renderSchoolProfileEditorInto(document.getElementById('schoolProfileTabBody'), meta.id);
+        }
+        window.render_principal_schoolProfile = renderSchoolProfileTab;
+        window.render_admin_schoolProfile = renderSchoolProfileTab;
+
         /* ---------------- Nav config per role ---------------- */
         const NAV = {
             student: [['progress', 'My Progress'], ['quizzes', 'My Quizzes'], ['assignments', 'Assignments'], ['materials', 'Class Materials'], ['checklist', 'Course Progress'], ['groups', 'My Group'], ['forum', 'Discussion'], ['rooms', 'Discussion Room'], ['inbox', 'Messages'], ['glossary', 'Glossary'], ['attendance', 'Attendance'], ['timetable', 'Timetable'], ['badges', 'Badges'], ['announcements', 'Announcements'], ['calendar', 'Calendar'], ['library', 'Library'], ['duties', 'Role Duties'], ['calls', 'Video & Audio Calls']],
@@ -4610,10 +5574,10 @@
            Dean, Administration → Registrar) without touching the underlying
            role keys, so nothing else in the app has to know the difference. */
         const TERTIARY_NAV_EXTRA = {
-            student: [['registration', 'Module Registration'], ['transcript', 'Transcript & GPA'], ['audit', 'Degree Audit'], ['services', 'Student Services']],
-            teacher: [['moduleMarks', 'Module Marks & DP']],
-            principal: [['senate', 'Senate Approvals'], ['programmes', 'Programmes & Modules']],
-            admin: [['registrar', 'Registrar Console'], ['applications', 'Applications']],
+            student: [['registration', 'Module Registration'], ['transcript', 'Transcript & GPA'], ['audit', 'Degree Audit'], ['planner', 'Academic Planner'], ['advising', 'Academic Advising'], ['services', 'Student Services']],
+            teacher: [['moduleMarks', 'Module Marks & DP'], ['advisees', 'My Advisees']],
+            principal: [['senate', 'Senate Approvals'], ['programmes', 'Programmes & Modules'], ['schoolProfile', 'School Profile']],
+            admin: [['registrar', 'Registrar Console'], ['applications', 'Applications'], ['schoolProfile', 'School Profile']],
         };
         const TERTIARY_ROLE_TAB_LABEL = { teacher: 'Lecturer', principal: 'Dean', deputy: 'Deputy Dean', admin: 'Registrar', it: 'ICT Services' };
         const TERTIARY_ROLE_LABEL = { teacher: 'Lecturer', principal: 'Dean / Chair of Senate', deputy: 'Deputy Dean', admin: "Registrar's Office", librarian: 'Library & Information Services', it: 'ICT Services' };
@@ -8240,6 +9204,7 @@
         function render_admin_registrar(main, user) {
             const cal = getAcademicCalendar();
             const students = getUsers().filter(u => u.role === 'student');
+            const lecturers = getUsers().filter(u => u.role === 'teacher');
             const programmes = getProgrammes();
             const svcRequests = getServiceRequests().slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
             main.innerHTML = `<div class="eyebrow">Registrar's Office</div><h2>Registrar Console</h2>
@@ -8272,6 +9237,18 @@
           <td><input type="text" class="field" style="width:90px;" data-fee-balance="${s.id}" value="${fee.balance || 0}"></td>
           <td><input type="checkbox" data-fee-cleared="${s.id}" ${fee.cleared ? 'checked' : ''} style="width:auto;"></td>
           <td><button class="btn small" data-fee-save="${s.id}">Save</button></td></tr>`;
+            }).join('')}
+      </tbody></table></div>`}
+    <h3 style="font-size:16px; margin-top:24px;">Academic Advising — Assign Advisors</h3>
+    ${students.length === 0 ? '<div class="empty">No students on record.</div>' : `<div class="panel"><table><thead><tr><th>Student</th><th>Programme</th><th>Advisor</th><th></th></tr></thead><tbody>
+      ${students.map(s => {
+                const p = programmeById(s.programmeId);
+                return `<tr><td>${escapeHtml(s.name)}</td><td>${p ? escapeHtml(p.name) : '—'}</td>
+          <td><select class="field" data-advisor-select="${s.id}" style="font-size:12.5px; padding:4px 6px;">
+            <option value="">No advisor assigned</option>
+            ${lecturers.map(l => `<option value="${l.id}" ${s.advisorId === l.id ? 'selected' : ''}>${escapeHtml(l.name)}</option>`).join('')}
+          </select></td>
+          <td><button class="btn small" data-advisor-save="${s.id}">Save</button></td></tr>`;
             }).join('')}
       </tbody></table></div>`}
     <h3 style="font-size:16px; margin-top:24px;">Admissions — Register New Student</h3>
@@ -8327,6 +9304,24 @@
                 saveFeeAccounts(list);
                 render();
             });
+            main.querySelectorAll('[data-advisor-save]').forEach(b => b.onclick = () => {
+                const sid = b.dataset.advisorSave;
+                const sel = main.querySelector(`[data-advisor-select="${sid}"]`);
+                const users = getUsers();
+                const stu = users.find(u => u.id === sid);
+                if (stu) stu.advisorId = sel.value || null;
+                saveUsers(users);
+                render();
+            });
+            main.querySelectorAll('[data-svc-save]').forEach(b => b.onclick = () => {
+                const rid = b.dataset.svcSave;
+                const sel = main.querySelector(`[data-svc-status="${rid}"]`);
+                const list = getServiceRequests();
+                const reqItem = list.find(r => r.id === rid);
+                if (reqItem) reqItem.status = sel.value;
+                saveServiceRequests(list);
+                render();
+            });
             main.querySelector('#admSave').onclick = () => {
                 const name = main.querySelector('#admName').value.trim();
                 const progId = main.querySelector('#admProg').value;
@@ -8343,6 +9338,98 @@
                 main.querySelector('#admStatus').textContent = `Admitted — student number ${studentNumber}.`;
                 render();
             };
+        }
+
+        /* ---------------- REGISTRAR (Tertiary): Applications ----------------
+           Reviews public "Apply Now" submissions (see renderApplyForm above).
+           Each application carries up to 3 ranked programme choices and a
+           campus. Approving admits the applicant as a real student into
+           whichever of their choices the Registrar selects (defaulting to
+           their 1st choice), mirroring the existing "Admit student" flow in
+           the Registrar Console. */
+        function render_admin_applications(main, user) {
+            const apps = getApplications().slice().sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
+            const pending = apps.filter(a => a.status === 'Pending' || !a.status);
+            const decided = apps.filter(a => a.status && a.status !== 'Pending');
+            const programmeLabel = (id) => { const p = programmeById(id); return p ? p.name : '(deleted programme)'; };
+            const choiceListHtml = (a) => arr(a.programmeChoices && a.programmeChoices.length ? a.programmeChoices : [a.programmeId]).filter(Boolean)
+                .map((id, i) => `${i + 1}. ${escapeHtml(programmeLabel(id))}`).join('<br>');
+            const admitSelectHtml = (a) => {
+                const choices = arr(a.programmeChoices && a.programmeChoices.length ? a.programmeChoices : [a.programmeId]).filter(Boolean);
+                return `<select class="field" data-app-admit-into="${a.id}" style="font-size:12.5px; padding:4px 6px;">
+          ${choices.map((id, i) => `<option value="${id}">${i + 1}${i === 0 ? ' (1st choice)' : i === 1 ? ' (2nd choice)' : ' (3rd choice)'} \u2014 ${escapeHtml(programmeLabel(id))}</option>`).join('')}
+        </select>`;
+            };
+            main.innerHTML = `<div class="eyebrow">Registrar's Office</div><h2>Applications</h2>
+    <div class="stat-row">
+      <div class="stat-card"><div class="num">${apps.length}</div><div class="lbl">Total received</div></div>
+      <div class="stat-card"><div class="num">${pending.length}</div><div class="lbl">Awaiting decision</div></div>
+      <div class="stat-card"><div class="num">${apps.filter(a => a.status === 'Admitted').length}</div><div class="lbl">Admitted</div></div>
+      <div class="stat-card"><div class="num">${apps.filter(a => a.status === 'Declined').length}</div><div class="lbl">Declined</div></div>
+    </div>
+    <h3 style="font-size:16px; margin-top:20px;">Pending Applications</h3>
+    ${pending.length === 0 ? '<div class="empty">No applications awaiting a decision.</div>' : pending.map(a => `
+      <div class="panel">
+        <div class="grid2">
+          <div>
+            <strong>${escapeHtml(a.name)}</strong><br>
+            <span class="muted" style="font-size:12.5px;">${escapeHtml(a.email)}${a.phone ? ' \u00b7 ' + escapeHtml(a.phone) : ''}</span><br>
+            <span class="muted" style="font-size:12.5px;">${escapeHtml(a.campus || 'Campus not specified')}</span><br>
+            <span class="muted" style="font-size:12.5px;">Previous: ${escapeHtml(a.previousSchool || '\u2014')}</span>
+          </div>
+          <div>
+            <div class="eyebrow" style="margin-bottom:4px;">Ranked choices</div>
+            <div style="font-size:13.5px;">${choiceListHtml(a)}</div>
+          </div>
+        </div>
+        ${a.statement ? `<p class="muted" style="font-size:12.5px; margin-top:10px; white-space:pre-wrap;">${escapeHtml(a.statement)}</p>` : ''}
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:12px; border-top:1px solid var(--rule); padding-top:12px;">
+          <label style="margin:0; font-size:12.5px;">Admit into:</label>
+          ${admitSelectHtml(a)}
+          <button class="btn small" data-app-approve="${a.id}">Approve &amp; Admit</button>
+          <button class="btn danger small" data-app-decline="${a.id}">Decline</button>
+        </div>
+      </div>`).join('')}
+    <h3 style="font-size:16px; margin-top:24px;">Decided Applications</h3>
+    ${decided.length === 0 ? '<div class="empty">No decisions made yet.</div>' : `<div class="panel"><table><thead><tr><th>Applicant</th><th>Campus</th><th>Choices</th><th>Status</th></tr></thead><tbody>
+      ${decided.map(a => `<tr><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.campus || '\u2014')}</td><td style="font-size:12.5px;">${choiceListHtml(a)}</td><td><span class="tag ${a.status === 'Admitted' ? 'good' : 'bad'}">${escapeHtml(a.status)}</span></td></tr>`).join('')}
+      </tbody></table></div>`}`;
+            main.querySelectorAll('[data-app-approve]').forEach(b => b.onclick = () => {
+                const aid = b.dataset.appApprove;
+                const applications = getApplications();
+                const app = applications.find(x => x.id === aid);
+                if (!app) return;
+                const sel = main.querySelector(`[data-app-admit-into="${aid}"]`);
+                const progId = sel ? sel.value : app.programmeId;
+                const prog = programmeById(progId);
+                if (!prog) { alert("That programme no longer exists \u2014 can't admit into it."); return; }
+                if (!confirm(`Admit ${app.name} into ${prog.name} at ${app.campus || 'the default campus'}?`)) return;
+                const users = getUsers();
+                const studentNumber = generateStudentNumber();
+                users.push({
+                    id: uid('s'), name: app.name, role: 'student', class: `${prog.name} \u00b7 Yr 1`,
+                    studentNumber, programmeId: progId, yearOfStudy: 1, campus: app.campus || '',
+                    email: app.email || '', phone: app.phone || '',
+                });
+                saveUsers(users);
+                const fees = getFeeAccounts();
+                fees.push({ studentId: users[users.length - 1].id, balance: 0, cleared: true });
+                saveFeeAccounts(fees);
+                app.status = 'Admitted';
+                app.admittedProgrammeId = progId;
+                app.decidedAt = new Date().toISOString();
+                saveApplications(applications);
+                render();
+            });
+            main.querySelectorAll('[data-app-decline]').forEach(b => b.onclick = () => {
+                const aid = b.dataset.appDecline;
+                if (!confirm('Decline this application?')) return;
+                const applications = getApplications();
+                const app = applications.find(x => x.id === aid);
+                if (app) { app.status = 'Declined'; app.decidedAt = new Date().toISOString(); }
+                saveApplications(applications);
+                render();
+            });
         }
 
         /* ---------------- Role Duties (help/guide page, every role) ---------------- */
@@ -8430,6 +9517,7 @@
                     ['Maintain the Programme and Module structure for the faculty.', 'programmes'],
                     ['Monitor faculty-wide academic performance via the Gradebook.', 'gradebook'],
                     ['Post faculty/Senate announcements and maintain the academic calendar of events.', 'announcements'],
+                    ['Keep the public School Profile page (hours, contact, sections, FAQs) current.', 'schoolProfile'],
                 ],
             },
             deputy: {
@@ -8464,6 +9552,7 @@
                     ['Maintain the academic calendar \u2014 registration window and add/drop deadline.', 'registrar'],
                     ['Publish the module and exam timetable each semester.', 'timetable'],
                     ['Process registrations for new staff and students where needed.', 'registration'],
+                    ['Keep the public School Profile page (hours, contact, sections, FAQs) current.', 'schoolProfile'],
                 ],
             },
             librarian: {
@@ -8795,16 +9884,27 @@
         }
 
         /* ---------------- Student Services ----------------
-           Informational categories (mirrors a real university's Student
-           Services section: bursaries/financial aid, accommodation, health,
-           counselling) plus a lightweight request form. Requests are handled
-           by the Registrar's Office (see the "Student Requests" section added
-           to render_admin_registrar below). */
+           Informational categories modelled on the range of services offered
+           by a real university's Department of Student Affairs and
+           Registrar's Office — general welfare and counselling, finance,
+           health, accommodation, discipline/advocacy, the student
+           representative body, academic records, international student
+           support, security, and campus facilities — plus a lightweight
+           request form. Requests are handled by the Registrar's Office (see
+           the "Student Service Requests" section in render_admin_registrar
+           below). */
         const STUDENT_SERVICE_CATEGORIES = [
-            { key: 'Bursary / Financial Aid', desc: 'Bursary applications, scholarship enquiries, and fee payment arrangements.' },
-            { key: 'Accommodation', desc: 'On-campus residence applications, room changes, and off-campus housing queries.' },
-            { key: 'Health Services', desc: 'Campus clinic appointments, medical certificates, and health insurance queries.' },
-            { key: 'Counselling', desc: 'Confidential academic, personal, or career counselling appointments.' },
+            { key: 'Bursary / Financial Aid', desc: 'Bursary applications, scholarship enquiries, government/loan-fund sponsorship queries, and fee payment arrangements.' },
+            { key: 'Accommodation & Meals', desc: 'On-campus residence/hostel applications, room changes, meal plan queries, and off-campus housing advice.' },
+            { key: 'Health Services', desc: 'Campus clinic appointments, medical certificates, health and wellness awareness, and health insurance queries.' },
+            { key: 'Counselling', desc: 'Confidential academic, personal, social, or career counselling appointments.' },
+            { key: 'Student Discipline & Advocacy', desc: 'Guidance on conduct/discipline processes, and support raising concerns or having a student\'s interests represented.' },
+            { key: 'Student Representative Council (SRC)', desc: 'Queries for or about the SRC, clubs, societies, and student-led activities.' },
+            { key: 'Academic Records & Transcripts', desc: 'Transcript requests, record corrections, and archived academic document enquiries.' },
+            { key: 'International Student Services', desc: 'Visa and study-permit guidance, immigration procedures, and settling-in support for international students.' },
+            { key: 'Campus Security', desc: 'Reporting safety concerns, lost property, and general campus security queries.' },
+            { key: 'Facilities & Transport', desc: 'Booking lecture halls or sports facilities, and queries about campus transport/shuttle services.' },
+            { key: 'Student Development', desc: 'Leadership programmes, extracurricular development, and general student growth initiatives.' },
         ];
         function render_student_services(main, user) {
             const myRequests = getServiceRequests().filter(r => r.studentId === user.id).slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -8839,6 +9939,141 @@
                 saveServiceRequests(list);
                 render();
             };
+        }
+
+        /* ---------------- Tertiary Academic Suite: Academic Advising ----------------
+           Original, EduPortal-native equivalent of a university "adviser"
+           relationship: the Registrar's Office assigns each student a
+           Lecturer as their academic advisor (see the Registrar Console
+           above); this gives the student a place to see who that is and
+           message them directly. */
+        function render_student_advising(main, user) {
+            const advisor = user.advisorId ? getUsers().find(u => u.id === user.advisorId) : null;
+            const thread = getAdvisingMessages().filter(m => m.studentId === user.id).sort((a, b) => (a.at || '').localeCompare(b.at || ''));
+            main.innerHTML = `<div class="eyebrow">Student Affairs</div><h2>Academic Advising</h2>
+    ${advisor ? `<div class="panel"><strong>${escapeHtml(advisor.name)}</strong><br><span class="muted" style="font-size:12.5px;">Your assigned academic advisor</span></div>`
+                    : `<div class="empty">No advisor assigned yet. Contact the Registrar's Office to be assigned one.</div>`}
+    ${advisor ? `<h3 style="font-size:16px; margin-top:20px;">Messages</h3>
+    <div class="panel">
+      ${thread.length === 0 ? '<div class="empty">No messages yet — say hello.</div>' : thread.map(m => `
+        <div style="margin-bottom:10px; padding:8px 10px; border-radius:8px; background:${m.fromRole === 'student' ? 'var(--accent-soft)' : 'var(--paper)'}; border:1px solid var(--rule);">
+          <div class="muted" style="font-size:11.5px; margin-bottom:2px;">${escapeHtml(m.fromName)} · ${new Date(m.at).toLocaleString()}</div>
+          <div style="font-size:13.5px;">${escapeHtml(m.body)}</div>
+        </div>`).join('')}
+      <textarea id="advisingMsgBody" rows="2" placeholder="Message your advisor…" style="margin-top:8px;"></textarea>
+      <button class="btn small" id="advisingMsgSend" style="margin-top:8px;">Send</button>
+    </div>` : ''}`;
+            const sendBtn = document.getElementById('advisingMsgSend');
+            if (sendBtn) sendBtn.onclick = () => {
+                const body = document.getElementById('advisingMsgBody').value.trim();
+                if (!body) return;
+                const list = getAdvisingMessages();
+                list.push({ id: uid('adv'), studentId: user.id, fromRole: 'student', fromName: user.name, body, at: new Date().toISOString() });
+                saveAdvisingMessages(list);
+                render();
+            };
+        }
+
+        /* ---- LECTURER (Tertiary): My Advisees ---- */
+        function render_teacher_advisees(main, user) {
+            const advisees = getUsers().filter(u => u.role === 'student' && u.advisorId === user.id);
+            const openId = state.advisingOpenId && advisees.some(a => a.id === state.advisingOpenId) ? state.advisingOpenId : null;
+            main.innerHTML = `<div class="eyebrow">Advising</div><h2>My Advisees</h2>
+    ${advisees.length === 0 ? '<div class="empty">No students are assigned to you as advisor yet — the Registrar\'s Office assigns advisors.</div>' : `<div class="panel"><table><thead><tr><th>Student</th><th>Programme</th><th>Standing</th><th>CGPA</th><th></th></tr></thead><tbody>
+      ${advisees.map(a => {
+                const p = programmeById(a.programmeId);
+                const rec = computeAcademicRecord(a.id);
+                return `<tr><td>${escapeHtml(a.name)}</td><td>${p ? escapeHtml(p.name) : '—'}</td><td>${escapeHtml(rec.standing || '—')}</td><td>${rec.cgpa != null ? rec.cgpa.toFixed(2) : '—'}</td>
+          <td><button class="btn secondary small" data-advisee-open="${a.id}">${openId === a.id ? 'Close' : 'Messages'}</button></td></tr>`;
+            }).join('')}
+      </tbody></table></div>`}
+    ${openId ? (() => {
+                const a = advisees.find(x => x.id === openId);
+                const thread = getAdvisingMessages().filter(m => m.studentId === openId).sort((x, y) => (x.at || '').localeCompare(y.at || ''));
+                return `<h3 style="font-size:16px; margin-top:20px;">Messages — ${escapeHtml(a.name)}</h3>
+      <div class="panel">
+        ${thread.length === 0 ? '<div class="empty">No messages yet.</div>' : thread.map(m => `
+          <div style="margin-bottom:10px; padding:8px 10px; border-radius:8px; background:${m.fromRole === 'student' ? 'var(--paper)' : 'var(--accent-soft)'}; border:1px solid var(--rule);">
+            <div class="muted" style="font-size:11.5px; margin-bottom:2px;">${escapeHtml(m.fromName)} · ${new Date(m.at).toLocaleString()}</div>
+            <div style="font-size:13.5px;">${escapeHtml(m.body)}</div>
+          </div>`).join('')}
+        <textarea id="adviseeMsgBody" rows="2" placeholder="Reply to ${escapeHtml(a.name)}…" style="margin-top:8px;"></textarea>
+        <button class="btn small" id="adviseeMsgSend" style="margin-top:8px;">Send</button>
+      </div>`;
+            })() : ''}`;
+            main.querySelectorAll('[data-advisee-open]').forEach(b => b.onclick = () => {
+                state.advisingOpenId = state.advisingOpenId === b.dataset.adviseeOpen ? null : b.dataset.adviseeOpen;
+                render();
+            });
+            const sendBtn = document.getElementById('adviseeMsgSend');
+            if (sendBtn && openId) sendBtn.onclick = () => {
+                const body = document.getElementById('adviseeMsgBody').value.trim();
+                if (!body) return;
+                const list = getAdvisingMessages();
+                list.push({ id: uid('adv'), studentId: openId, fromRole: 'teacher', fromName: user.name, body, at: new Date().toISOString() });
+                saveAdvisingMessages(list);
+                render();
+            };
+        }
+
+        /* ---------------- Tertiary Academic Suite: Academic Planner ----------------
+           Original, EduPortal-native planning tool: lets a student sketch out
+           which modules they intend to take in future semesters, ahead of
+           actually registering, so they can see a path to graduation. Kept
+           entirely separate from real registrations (getRegistrations) so a
+           plan never counts as an actual enrolment. */
+        function render_student_planner(main, user) {
+            const prog = user.programmeId ? programmeById(user.programmeId) : null;
+            if (!prog) {
+                main.innerHTML = `<div class="eyebrow">Registrar</div><h2>Academic Planner</h2>
+        <div class="empty">You're not yet linked to a programme. Contact the Registrar's Office to be admitted first.</div>`;
+                return;
+            }
+            const cal = getAcademicCalendar();
+            if (!state.plannerYear) state.plannerYear = cal.academicYear;
+            const plan = planFor(user.id);
+            const progModules = getTModules().filter(m => m.programmeId === prog.id);
+            const regs = getRegistrations().filter(r => r.studentId === user.id && r.status !== 'dropped' && r.resultStatus === 'approved');
+            const completedIds = new Set(regs.map(r => r.moduleId));
+            const termItems = plan.items.filter(it => it.year === state.plannerYear && it.semester === state.plannerSem);
+            const plannedIds = new Set(termItems.map(it => it.moduleId));
+            const termCredits = termItems.reduce((sum, it) => { const m = progModules.find(mm => mm.id === it.moduleId); return sum + (m ? Number(m.credits) || 0 : 0); }, 0);
+            const candidates = progModules.filter(m => m.semester === state.plannerSem && !completedIds.has(m.id) && !plannedIds.has(m.id));
+            main.innerHTML = `<div class="eyebrow">Registrar</div><h2>Academic Planner</h2>
+    <p class="muted" style="font-size:13px; margin:0 0 14px;">Sketch out future semesters toward your ${escapeHtml(prog.name)} — this is a plan, not a registration. When the term arrives, register for real under Module Registration.</p>
+    <div class="grid2">
+      <div><label>Planning year</label><input type="text" id="plannerYearInput" value="${escapeHtml(state.plannerYear)}"></div>
+      <div><label>Semester</label><select class="field" id="plannerSemInput"><option ${state.plannerSem === 'Semester 1' ? 'selected' : ''}>Semester 1</option><option ${state.plannerSem === 'Semester 2' ? 'selected' : ''}>Semester 2</option></select></div>
+    </div>
+    <div class="stat-row" style="margin-top:14px;">
+      <div class="stat-card"><div class="num">${termCredits}</div><div class="lbl">Planned credits</div></div>
+      <div class="stat-card"><div class="num">${cal.maxCreditsPerSemester}</div><div class="lbl">Max per semester</div></div>
+    </div>
+    <h3 style="font-size:16px; margin-top:20px;">Planned — ${escapeHtml(state.plannerYear)} ${state.plannerSem}</h3>
+    ${termItems.length === 0 ? '<div class="empty">Nothing planned for this term yet.</div>' : `<div class="panel"><table><thead><tr><th>Code</th><th>Module</th><th>Credits</th><th></th></tr></thead><tbody>
+      ${termItems.map(it => { const m = progModules.find(mm => mm.id === it.moduleId); return `<tr><td>${m ? m.code : '—'}</td><td>${m ? m.name : 'Unknown module'}</td><td>${m ? m.credits : '—'}</td><td><button class="btn danger small" data-plan-remove="${it.moduleId}">Remove</button></td></tr>`; }).join('')}
+      </tbody></table></div>`}
+    <h3 style="font-size:16px; margin-top:20px;">Add a module</h3>
+    ${candidates.length === 0 ? '<div class="empty">No further modules to plan for this semester.</div>' : `<div class="panel"><table><thead><tr><th>Code</th><th>Module</th><th>Credits</th><th>Prerequisites</th><th></th></tr></thead><tbody>
+      ${candidates.map(m => `<tr><td>${m.code}</td><td>${m.name}</td><td>${m.credits}</td><td>${arr(m.prerequisites).join(', ') || '—'}</td><td><button class="btn small" data-plan-add="${m.id}">Add to plan</button></td></tr>`).join('')}
+      </tbody></table></div>`}`;
+            main.querySelector('#plannerYearInput').onchange = (e) => { state.plannerYear = e.target.value.trim() || cal.academicYear; render(); };
+            main.querySelector('#plannerSemInput').onchange = (e) => { state.plannerSem = e.target.value; render(); };
+            main.querySelectorAll('[data-plan-add]').forEach(b => b.onclick = () => {
+                const plans = getAcademicPlans();
+                let p = plans.find(x => x.studentId === user.id);
+                if (!p) { p = { studentId: user.id, items: [] }; plans.push(p); }
+                p.items.push({ moduleId: b.dataset.planAdd, year: state.plannerYear, semester: state.plannerSem });
+                saveAcademicPlans(plans);
+                render();
+            });
+            main.querySelectorAll('[data-plan-remove]').forEach(b => b.onclick = () => {
+                const plans = getAcademicPlans();
+                const p = plans.find(x => x.studentId === user.id);
+                if (p) p.items = p.items.filter(it => !(it.moduleId === b.dataset.planRemove && it.year === state.plannerYear && it.semester === state.plannerSem));
+                saveAcademicPlans(plans);
+                render();
+            });
         }
 
         /* ---------------- Owner Console: render + actions ---------------- */
@@ -8961,15 +10196,60 @@
             if (ownerState.customizeSchoolId && !schools.find(s => s.id === ownerState.customizeSchoolId)) ownerState.customizeSchoolId = null;
             const customizeSchool = ownerState.customizeSchoolId ? schools.find(s => s.id === ownerState.customizeSchoolId) : null;
 
+            // Public School Profile editor: Tertiary schools only.
+            const tertiarySchools = schools.filter(s => s.type === 'Tertiary');
+            if (ownerState.profileSchoolId && !tertiarySchools.find(s => s.id === ownerState.profileSchoolId)) ownerState.profileSchoolId = null;
+            const profileSchool = ownerState.profileSchoolId ? tertiarySchools.find(s => s.id === ownerState.profileSchoolId) : null;
+
             const main = document.getElementById('ownerMain');
             const focusedEl = document.activeElement;
             const focusedId = (focusedEl && main.contains(focusedEl)) ? focusedEl.id : null;
             const focusedSelStart = (focusedId && typeof focusedEl.selectionStart === 'number') ? focusedEl.selectionStart : null;
             const focusedSelEnd = (focusedId && typeof focusedEl.selectionEnd === 'number') ? focusedEl.selectionEnd : null;
+            // "Just registered" confirmation — the school's ready-made shareable
+            // link plus a live GitHub sync status, shown immediately after
+            // Register School so the Owner doesn't have to hunt for either one
+            // in the list below. Cleared on dismiss / next registration / edit.
+            const justRegSchool = ownerState.justRegistered ? schools.find(s => s.id === ownerState.justRegistered.id) : null;
+            let justRegisteredPanel = '';
+            if (justRegSchool) {
+                const link = schoolAccessLink(justRegSchool.id);
+                const gh = getGithubConfig();
+                let ghStatusHtml;
+                if (!githubConfigured()) {
+                    ghStatusHtml = `<span class="muted">GitHub sync isn\u2019t set up yet \u2014 configure it in \u201cGitHub Registry Sync\u201d below to back this school up automatically.</span>`;
+                } else if (ownerSyncBusy) {
+                    ghStatusHtml = `<span class="muted">\u23f3 Pushing to GitHub\u2026</span>`;
+                } else if (gh.lastSyncError) {
+                    ghStatusHtml = `<span style="color:var(--danger, #b3261e);">\u2717 GitHub sync failed: ${escapeHtml(gh.lastSyncError)}</span>`;
+                } else if (gh.lastSyncAt) {
+                    ghStatusHtml = `<span style="color:var(--accent);">\u2713 Synced to GitHub${gh.lastSyncCommitUrl ? ` \u2014 <a href="${gh.lastSyncCommitUrl}" target="_blank" rel="noopener">view commit</a>` : ''}</span>`;
+                } else {
+                    ghStatusHtml = `<span class="muted">Queued for GitHub sync\u2026</span>`;
+                }
+                justRegisteredPanel = `
+    <div class="panel" style="border-color:var(--accent); background:var(--accent-soft);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <div>
+          <div class="eyebrow" style="color:var(--accent);">\u2713 Registered</div>
+          <h3 style="font-size:16px; margin:2px 0 0;">${escapeHtml(justRegSchool.name)} is ready</h3>
+        </div>
+        <button type="button" class="btn secondary small" id="dismissJustRegistered" aria-label="Dismiss">\u2715</button>
+      </div>
+      <label style="margin-top:12px;">Shareable link</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" readonly value="${escapeHtml(link)}" style="flex:1; min-width:220px;" onclick="this.select();">
+        <button type="button" class="btn small" data-link="${justRegSchool.id}">Copy Link</button>
+        <a class="btn secondary small" href="${link}" target="_blank" rel="noopener" style="text-decoration:none;">Open</a>
+      </div>
+      <p style="font-size:12.5px; margin:10px 0 0;">${ghStatusHtml}</p>
+    </div>
+`;
+            }
             main.innerHTML = `
     <div class="eyebrow">System Owner</div>
     <h2>All Schools</h2>
-
+${justRegisteredPanel}
     <div class="stat-row">
       <div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Schools</div></div>
       <div class="stat-card"><div class="num">${active}</div><div class="lbl">Active</div></div>
@@ -8980,6 +10260,7 @@
     <div class="panel">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <h3 style="font-size:16px; margin:0;">${editing ? 'Edit School' : 'Register New School'}</h3>
+
         ${editing ? '' : `<button class="btn secondary small" id="toggleRegForm">${ownerState.formOpen ? 'Hide form' : 'New registration'}</button>`}
       </div>
       <div id="regFormWrap" style="${(editing || ownerState.formOpen) ? '' : 'display:none;'} margin-top:10px;">
@@ -9056,6 +10337,15 @@
           <button type="button" class="btn secondary small" id="pwaFilesBtn">Download PWA Files</button>
         </div>
       </div>
+      ${(() => {
+        const offCount = schools.filter(s => s.seoDiscoverable === false).length;
+        return offCount > 0
+          ? `<div style="margin-top:12px; padding:10px 12px; border:1px solid var(--warn); background:var(--warn-soft); border-radius:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <span style="font-size:12.5px;">${offCount} school${offCount === 1 ? ' has' : 's have'} indexing turned off.</span>
+              <button type="button" class="btn small" id="enableAllSeoBtn">Enable Indexing — All Schools</button>
+            </div>`
+          : `<div style="margin-top:12px; padding:10px 12px; border:1px solid var(--rule); background:var(--accent-soft); border-radius:6px; font-size:12.5px; color:var(--accent);">✓ Every registered school currently allows search-engine indexing.</div>`;
+      })()}
       <div class="muted" style="font-size:11px; margin-top:10px; padding-top:10px; border-top:1px solid var(--rule);">
         <strong>Note on JS rendering:</strong> this page builds each school's content in the browser after load. Google's crawler handles that fine. Bing and DuckDuckGo are slower and less reliable at it — if a school isn't showing up there months after hosting, that's usually why; resubmitting the sitemap in Bing Webmaster Tools periodically helps more than waiting.
       </div>
@@ -9133,9 +10423,10 @@
     <div class="panel">
       <h3 style="font-size:16px; margin:0 0 4px;">Full Data Sync — everything, not just schools</h3>
       <p class="muted" style="font-size:13px; margin:0 0 10px;">Mirrors the <strong>entire</strong> EduPortal database — every school's users, gradebooks, attendance, materials, announcements, discussion rooms, the Owner's own records, all of it — into a folder of JSON files in the same repository, one file per school plus one for the Owner's own records, so each school's changes stay in their own file and diff cleanly. Once turned on, it fires automatically after <em>any</em> change anywhere in the app, by anyone, not just from the Owner Console. Uses the same token / owner / repo / branch entered above.</p>
+      <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">On by default alongside the registry sync above — once a token, owner and repo are saved, every school's full data syncs automatically too. Uncheck below only if you want the repository to hold just the lightweight school registry.</p>
       <p class="muted" style="font-size:12px; margin:0 0 14px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">Pushes via GitHub's Git Data API rather than the simple file API, so files aren't capped at 1MB — each can hold up to about 100MB. If two tabs push at the same moment, this automatically retries on top of whatever landed first rather than failing. Frequent changes are batched (a few seconds of quiet) so you don't get a commit per keystroke. Needs the school registry pushed at least once first (that's what creates the branch this relies on).</p>
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-        <input type="checkbox" id="ghFullEnabled" style="width:auto;" ${githubCfg.fullSyncEnabled ? 'checked' : ''}>
+        <input type="checkbox" id="ghFullEnabled" style="width:auto;" ${githubCfg.fullSyncEnabled !== false ? 'checked' : ''}>
         <span>Enable full data sync</span>
       </label>
       <label style="margin-top:10px;">Full backup folder path</label>
@@ -9245,6 +10536,18 @@
       </div>` : '<div class="empty" style="margin-top:14px;">No announcements posted to this school yet.</div>'}
       `}
       ` : ''}
+    </div>
+
+    <div class="panel">
+      <h3 style="font-size:16px; margin:0 0 4px;">Public School Profile</h3>
+      <p class="muted" style="font-size:13px; margin:0 0 14px;">Edit the knowledge-panel-style public page (photos, hours, phone, expandable info sections, FAQs) that visitors see before signing in — Tertiary schools only. A school's own Dean/Principal or Registrar can also edit this from inside their portal.</p>
+      <label>School</label>
+      <select class="field" id="profileSchoolSelect">
+        <option value="">Choose a Tertiary school…</option>
+        ${tertiarySchools.map(s => `<option value="${s.id}" ${profileSchool && profileSchool.id === s.id ? 'selected' : ''}>${s.name}</option>`).join('')}
+      </select>
+      ${tertiarySchools.length === 0 ? '<p class="muted" style="font-size:12.5px; margin-top:10px;">No Tertiary schools registered yet — set a school\'s type to Tertiary above to manage its profile here.</p>' : ''}
+      ${profileSchool ? `<div id="ownerProfileEditorBody" style="border-top:1px solid var(--rule); padding-top:14px; margin-top:14px;"></div>` : ''}
     </div>
 
     <div class="panel">
@@ -9486,6 +10789,69 @@
         </tbody></table>` : '<div class="empty">No activity logged yet.</div>';
       })()}
     </div>
+
+    <div class="panel">
+      <div class="eyebrow">Dominion</div>
+      <h3 style="font-size:16px; margin:4px 0;">Raw Data Override — Full Authority</h3>
+      <p class="muted" style="font-size:13px; margin:0 0 14px;">Read or directly rewrite any stored record for any school — the same reach as that school's own database, without ever entering its portal. Saving replaces the entire record for the chosen key, so load it first, edit carefully, then save.</p>
+      <div class="owner-form-grid">
+        <div>
+          <label>School</label>
+          <select class="field" id="overrideSchoolSelect">
+            <option value="">Choose a school…</option>
+            ${schools.map(s => `<option value="${s.id}" ${ownerState.overrideSchoolId === s.id ? 'selected' : ''}>${escapeHtml(s.name)}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Data key</label>
+          <select class="field" id="overrideKeySelect">
+            <option value="">Choose a data key…</option>
+            ${SCHOOL_DATA_KEYS.map(k => `<option value="${k}" ${ownerState.overrideKey === k ? 'selected' : ''}>${k}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin:12px 0 10px; flex-wrap:wrap;">
+        <button type="button" class="btn secondary small" id="overrideLoadBtn" ${(ownerState.overrideSchoolId && ownerState.overrideKey) ? '' : 'disabled'}>Load Data</button>
+        <button type="button" class="btn small" id="overrideSaveBtn" ${(ownerState.overrideSchoolId && ownerState.overrideKey) ? '' : 'disabled'}>Save Override</button>
+      </div>
+      ${ownerState.overrideError ? `<div class="login-error" style="display:block; margin-bottom:8px;">${escapeHtml(ownerState.overrideError)}</div>` : ''}
+      <textarea id="overrideEditor" rows="12" style="font-family:monospace; font-size:12.5px;" placeholder="Choose a school and key above, then Load Data.">${escapeHtml(ownerState.overrideDraft || '')}</textarea>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow">Dominion</div>
+      <h3 style="font-size:16px; margin:4px 0;">Identifier Registry</h3>
+      <p class="muted" style="font-size:13px; margin:0 0 14px;">Every school and every user account in the system, in one searchable index — so any identifier can be looked up or confirmed on sight.</p>
+      <input type="text" id="registrySearchInput" placeholder="Search by ID, name, role, or school…" value="${escapeHtml(ownerState.registrySearch || '')}" style="margin-bottom:10px;">
+      <div id="registryTableWrap">${identifierRegistryTableHtml(schools, ownerState.registrySearch)}</div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow">Dominion</div>
+      <h3 style="font-size:16px; margin:4px 0;">Succession &amp; Access</h3>
+      <p class="muted" style="font-size:13px; margin:0 0 14px;">Grant another person full Owner Console access — a designated successor or backup owner — without touching source code. Revoke it here just as easily.</p>
+      <form id="successorForm">
+        <div class="owner-form-grid">
+          <div>
+            <label>Successor's email</label>
+            <input type="email" id="successorEmailInput" placeholder="name@example.com" value="${escapeHtml(ownerState.successorEmailInput || '')}">
+          </div>
+          <div>
+            <label>Label (who they are)</label>
+            <input type="text" id="successorLabelInput" placeholder="e.g. Deputy Owner" value="${escapeHtml(ownerState.successorLabelInput || '')}">
+          </div>
+        </div>
+        <button type="submit" class="btn small" style="margin-top:10px;">Grant Owner Access</button>
+      </form>
+      <div style="margin-top:16px;">
+        ${(() => {
+          const list = getSuccessorEntries();
+          return list.length ? `<table><thead><tr><th>Label</th><th>Granted</th><th></th></tr></thead><tbody>
+          ${list.map(s => `<tr><td>${escapeHtml(s.label || '(no label)')}</td><td class="muted" style="font-size:12px; white-space:nowrap;">${new Date(s.addedAt).toLocaleDateString()}</td><td><button type="button" class="btn secondary small" data-revoke-successor="${s.emailHash}">Revoke</button></td></tr>`).join('')}
+          </tbody></table>` : '<div class="empty">No successors designated yet — the Owner Console is accessible only to the emails set in source.</div>';
+        })()}
+      </div>
+    </div>
   `;
 
             if (focusedId) {
@@ -9499,7 +10865,7 @@
             }
 
             const toggleBtn = document.getElementById('toggleRegForm');
-            if (toggleBtn) toggleBtn.onclick = () => { ownerState.formOpen = !ownerState.formOpen; renderOwner(); };
+            if (toggleBtn) toggleBtn.onclick = () => { ownerState.formOpen = !ownerState.formOpen; ownerState.justRegistered = null; renderOwner(); };
 
             const cancelBtn = document.getElementById('cancelEdit');
             if (cancelBtn) cancelBtn.onclick = () => { ownerState.editingId = null; renderOwner(); };
@@ -9563,7 +10929,15 @@
                     seedSchoolIfNeeded(newSchool.id);
                     logOwnerActivity('Registered new school', name);
                     ownerState.formOpen = false;
+                    ownerState.justRegistered = { id: newSchool.id };
                     syncSchoolsToGithub(`registered new school — ${name}`);
+                    // Best-effort: get the shareable link straight onto the
+                    // clipboard too, so it's ready to paste even before the
+                    // Owner looks at the confirmation panel. Silently no-ops
+                    // if the browser/context doesn't allow clipboard access.
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(schoolAccessLink(newSchool.id)).catch(() => { });
+                    }
                 }
                 ownerState.badgeDraft = '';
                 ownerState.badgeDraftFor = undefined;
@@ -9716,6 +11090,8 @@
             };
 
             main.querySelectorAll('[data-enter]').forEach(b => b.onclick = () => enterSchool(b.dataset.enter, { asOwner: true }));
+            const dismissJustRegBtn = document.getElementById('dismissJustRegistered');
+            if (dismissJustRegBtn) dismissJustRegBtn.onclick = () => { ownerState.justRegistered = null; renderOwner(); };
             main.querySelectorAll('[data-link]').forEach(b => b.onclick = () => {
                 const link = schoolAccessLink(b.dataset.link);
                 const done = (ok) => { b.textContent = ok ? 'Copied!' : 'Copy failed'; setTimeout(() => b.textContent = 'Copy Link', 1600); };
@@ -9744,12 +11120,23 @@
                 downloadTextFile('service-worker.js', generateServiceWorkerJs());
                 alert(`Downloaded manifest.json and service-worker.js.\n\nPut both at the site's root once hosted (they're already referenced from <head> and from the service-worker registration in index.html). Also make sure icons/eduportal-icon.svg exists at that path — it ships with the repo scaffold, or re-create it if you've changed the app's branding. Together these are what makes "Add to Home Screen" and basic offline caching work.`);
             };
+            const enableAllSeoBtn = document.getElementById('enableAllSeoBtn');
+            if (enableAllSeoBtn) enableAllSeoBtn.onclick = () => {
+                const schoolsArr = getSchools();
+                let changedCount = 0;
+                schoolsArr.forEach(s => { if (s.seoDiscoverable === false) { s.seoDiscoverable = true; changedCount++; } });
+                if (changedCount === 0) return;
+                saveSchools(schoolsArr);
+                logOwnerActivity('Enabled search-engine indexing', `${changedCount} school${changedCount === 1 ? '' : 's'}`);
+                syncSchoolsToGithub(`enabled indexing for ${changedCount} school${changedCount === 1 ? '' : 's'}`);
+                renderOwner();
+            };
             main.querySelectorAll('[data-seo]').forEach(b => b.onclick = () => {
                 const s = getSchools().find(x => x.id === b.dataset.seo);
                 if (!s) return;
                 downloadSchoolSearchSetup(s);
             });
-            main.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { ownerState.editingId = b.dataset.edit; ownerState.formOpen = true; renderOwner(); });
+            main.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { ownerState.editingId = b.dataset.edit; ownerState.formOpen = true; ownerState.justRegistered = null; renderOwner(); });
             main.querySelectorAll('[data-toggle-status]').forEach(b => b.onclick = () => {
                 const schoolsArr = getSchools();
                 const s = schoolsArr.find(x => x.id === b.dataset.toggleStatus);
@@ -9824,6 +11211,15 @@
                 ownerState.contentTab = b.dataset.contentTab;
                 renderOwner();
             });
+
+            // ---- Public School Profile editor wiring ----
+            const profileSchoolSelect = document.getElementById('profileSchoolSelect');
+            if (profileSchoolSelect) profileSchoolSelect.onchange = (e) => {
+                ownerState.profileSchoolId = e.target.value || null;
+                renderOwner();
+            };
+            const ownerProfileEditorBody = document.getElementById('ownerProfileEditorBody');
+            if (ownerProfileEditorBody && profileSchool) renderSchoolProfileEditorInto(ownerProfileEditorBody, profileSchool.id);
             if (contentSchool) {
                 const ocAnSave = document.getElementById('ocAnSave');
                 if (ocAnSave) ocAnSave.onclick = () => {
@@ -10138,6 +11534,82 @@
                 });
             }
             wireModerationButtons();
+
+            /* ---- Dominion: Raw Data Override wiring ---- */
+            const overrideSchoolSelect = document.getElementById('overrideSchoolSelect');
+            const overrideKeySelect = document.getElementById('overrideKeySelect');
+            const overrideLoadBtn = document.getElementById('overrideLoadBtn');
+            const overrideSaveBtn = document.getElementById('overrideSaveBtn');
+            const overrideEditor = document.getElementById('overrideEditor');
+            if (overrideSchoolSelect) overrideSchoolSelect.onchange = () => {
+                ownerState.overrideSchoolId = overrideSchoolSelect.value || null;
+                ownerState.overrideDraft = ''; ownerState.overrideError = '';
+                renderOwner();
+            };
+            if (overrideKeySelect) overrideKeySelect.onchange = () => {
+                ownerState.overrideKey = overrideKeySelect.value || '';
+                ownerState.overrideDraft = ''; ownerState.overrideError = '';
+                renderOwner();
+            };
+            if (overrideLoadBtn) overrideLoadBtn.onclick = () => {
+                if (!ownerState.overrideSchoolId || !ownerState.overrideKey) return;
+                const data = readSchoolData(ownerState.overrideSchoolId, ownerState.overrideKey, []);
+                ownerState.overrideDraft = JSON.stringify(data, null, 2);
+                ownerState.overrideError = '';
+                renderOwner();
+            };
+            if (overrideSaveBtn) overrideSaveBtn.onclick = () => {
+                if (!ownerState.overrideSchoolId || !ownerState.overrideKey || !overrideEditor) return;
+                const targetSchool = schools.find(s => s.id === ownerState.overrideSchoolId);
+                let parsed;
+                try { parsed = JSON.parse(overrideEditor.value); }
+                catch (e) { ownerState.overrideError = 'Invalid JSON — ' + e.message; renderOwner(); return; }
+                if (!confirm(`This will overwrite "${ownerState.overrideKey}" for ${targetSchool ? targetSchool.name : ownerState.overrideSchoolId}. This cannot be undone. Continue?`)) return;
+                writeSchoolData(ownerState.overrideSchoolId, ownerState.overrideKey, parsed);
+                logOwnerActivity('Raw data override', `${ownerState.overrideKey} — ${targetSchool ? targetSchool.name : ownerState.overrideSchoolId}`);
+                ownerState.overrideDraft = JSON.stringify(parsed, null, 2);
+                ownerState.overrideError = '';
+                renderOwner();
+            };
+
+            /* ---- Dominion: Identifier Registry wiring ---- */
+            const registrySearchInput = document.getElementById('registrySearchInput');
+            if (registrySearchInput) registrySearchInput.oninput = () => {
+                ownerState.registrySearch = registrySearchInput.value;
+                const wrap = document.getElementById('registryTableWrap');
+                if (wrap) wrap.innerHTML = identifierRegistryTableHtml(schools, ownerState.registrySearch);
+            };
+
+            /* ---- Dominion: Succession wiring ---- */
+            const successorForm = document.getElementById('successorForm');
+            if (successorForm) successorForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const emailInput = document.getElementById('successorEmailInput');
+                const labelInput = document.getElementById('successorLabelInput');
+                const email = (emailInput.value || '').trim().toLowerCase();
+                const label = (labelInput.value || '').trim();
+                if (!email) return;
+                if (!confirm(`This grants ${label || email} full Owner Console dominion — the same authority you have, over every school. Continue?`)) return;
+                const emailHash = await sha256Hex(email);
+                const list = getSuccessorEntries();
+                if (list.some(s => s.emailHash === emailHash)) { alert('That email already has Owner access.'); return; }
+                list.push({ emailHash, label, addedAt: new Date().toISOString() });
+                saveSuccessorEntries(list);
+                logOwnerActivity('Granted Owner Console access', label || '(unlabeled successor)');
+                ownerState.successorEmailInput = ''; ownerState.successorLabelInput = '';
+                renderOwner();
+            });
+            document.querySelectorAll('[data-revoke-successor]').forEach(btn => {
+                btn.onclick = () => {
+                    const hash = btn.getAttribute('data-revoke-successor');
+                    const list = getSuccessorEntries();
+                    const entry = list.find(s => s.emailHash === hash);
+                    if (!confirm(`Revoke Owner Console access for ${entry && entry.label ? entry.label : 'this successor'}?`)) return;
+                    saveSuccessorEntries(list.filter(s => s.emailHash !== hash));
+                    logOwnerActivity('Revoked Owner Console access', entry && entry.label ? entry.label : '(unlabeled successor)');
+                    renderOwner();
+                };
+            });
         }
 
         document.getElementById('ownerConsoleBtn').addEventListener('click', backToOwnerConsole);
@@ -10166,9 +11638,23 @@
         function schoolIdFromLink() {
             try { return new URLSearchParams(location.search).get('school'); } catch (e) { return null; }
         }
-        function schoolAccessLink(id) {
+        /* The specific public sub-page (Prospectus / Apply / Faculties / School
+           Profile) requested by the URL's own &view= parameter — kept as a
+           second, optional parameter, never folded into ?school=, so a plain
+           school link always still means "show the sign-in gate" and only a
+           link that deliberately points at e.g. the Prospectus needs it. This
+           is what makes those pages independently bookmarkable/shareable and
+           survivable across a page refresh — see syncPublicViewUrl(). */
+        const PUBLIC_VIEW_KEYS = ['apply', 'prospectus', 'faculties', 'profile'];
+        function publicViewFromLink() {
+            try {
+                const v = new URLSearchParams(location.search).get('view');
+                return PUBLIC_VIEW_KEYS.includes(v) ? v : null;
+            } catch (e) { return null; }
+        }
+        function schoolAccessLink(id, view) {
             const url = new URL(location.href);
-            url.search = '?school=' + encodeURIComponent(id);
+            url.search = '?school=' + encodeURIComponent(id) + (view ? '&view=' + encodeURIComponent(view) : '');
             url.hash = '';
             return url.toString();
         }
@@ -11472,16 +12958,30 @@ self.addEventListener('fetch', (e) => {
                     OwnerDB.set('demoEverUsed', true);
                 }
                 seedSchoolIfNeeded(linkedSchoolId);
-                enterSchool(linkedSchoolId);
+                // fromBoot: true → replace, not push, the current history entry
+                // (the address bar is already correct); initialView carries any
+                // &view=prospectus/apply/faculties/profile through so a deep
+                // link into one of those pages survives landing here directly.
+                enterSchool(linkedSchoolId, { initialView: publicViewFromLink(), fromBoot: true });
             } else {
-                // Bare app URL (no ?school=). Defaults to the "Find your school"
+                // Bare app URL (no ?school=), OR a ?school= that didn't match any
+                // registered school — a typo, a deleted school, or a stale
+                // bookmark. Either way this falls back to the "Find your school"
                 // landing page for a fresh browser (see NavDB above — this is
-                // resolved per-device, never shared). If THIS browser previously
-                // clicked into the Owner Console, appMode/ownerAccess were saved
-                // locally and are restored here so the Owner lands back where
-                // they left off; every other visitor still sees the landing page.
+                // resolved per-device, never shared); if a link was actually
+                // attempted and simply didn't resolve, say so explicitly rather
+                // than silently showing the generic directory with no explanation.
+                // If THIS browser previously clicked into the Owner Console,
+                // appMode/ownerAccess were saved locally and are restored here so
+                // the Owner lands back where they left off; every other visitor
+                // still sees the landing page.
+                if (linkedSchoolId) {
+                    landingLinkNotice = 'That school link wasn\u2019t recognized \u2014 showing all registered schools instead.';
+                    appMode = 'landing';
+                }
                 ownerAccess = NavDB.get('ownerAccess', false);
                 seedSchoolIfNeeded(currentSchoolId); // make sure whichever school is active has data
+                syncLocationUrl(false);
                 showView();
             }
 
@@ -11492,6 +12992,27 @@ self.addEventListener('fetch', (e) => {
             startCallPresencePoll();
             const bellBtn = document.getElementById('callsBellBtn');
             if (bellBtn) bellBtn.onclick = () => { state.tab = 'calls'; render(); };
+
+            // Back/Forward reliability for the public login-gate pages (Sign In /
+            // Apply / Prospectus / Faculties / School Profile): if the visitor is
+            // still browsing the same school and hasn't signed in, just swap the
+            // page in place. Anything more unusual (a different school in
+            // history, or navigating back into a signed-in session) is handled
+            // by a full reload, which boot() resolves correctly from scratch —
+            // simpler and safer than trying to rewind in-memory session state.
+            window.addEventListener('popstate', () => {
+                try {
+                    const urlSchoolId = schoolIdFromLink();
+                    const urlView = publicViewFromLink();
+                    const signedIn = ownerAccess || !!authedUser;
+                    if (appMode === 'school' && !signedIn && urlSchoolId === currentSchoolId) {
+                        preLoginPublicView = urlView;
+                        renderLoginGate();
+                    } else {
+                        location.reload();
+                    }
+                } catch (e) { location.reload(); }
+            });
         })();
     </script>
 </body>

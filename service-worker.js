@@ -1,50 +1,16 @@
-/* EduPortal service worker — app-shell caching only.
-   Bump CACHE_NAME whenever index.html (or the other shell files) change,
-   so returning visitors pick up the new version instead of a stale cache. */
-const CACHE_NAME = 'eduportal-shell-v1';
-const SHELL_FILES = [
-    './',
-    './index.html',
-    './manifest.json',
-    './icons/eduportal-icon.svg',
-];
-
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(SHELL_FILES))
-            .then(() => self.skipWaiting())
-    );
+// Minimal offline cache for EduPortal. Caches this page's own shell so it
+// still opens (read-only, last-loaded data) with no connection. Data itself
+// keeps syncing through the app's normal cloud storage layer once back
+// online — this only covers the app shell, not a full offline data store.
+const CACHE = 'eduportal-shell-v1';
+self.addEventListener('install', (e) => {
+    e.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(['./', './index.html'])).catch(() => { }));
+    self.skipWaiting();
 });
-
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys()
-            .then((names) => Promise.all(names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))))
-            .then(() => self.clients.claim())
-    );
+self.addEventListener('activate', (e) => {
+    e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
 });
-
-self.addEventListener('fetch', (event) => {
-    const req = event.request;
-    // Only handle same-origin GET requests for the app shell. Everything
-    // else (GitHub API calls, the cloud storage backends, any other
-    // cross-origin fetch the app makes) is left completely untouched so
-    // this never interferes with live sync.
-    if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-
-    event.respondWith(
-        caches.match(req).then((cached) => {
-            const network = fetch(req)
-                .then((res) => {
-                    if (res && res.ok) {
-                        const copy = res.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
-                    }
-                    return res;
-                })
-                .catch(() => cached);
-            return cached || network;
-        })
-    );
+self.addEventListener('fetch', (e) => {
+    if (e.request.method !== 'GET') return;
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });

@@ -1,25 +1,15 @@
 {
   "name": "EduPortal",
   "short_name": "EduPortal",
-  "description": "School management and learning portal for learners, teachers, administrators, and owners.",
-  "start_url": "./index.html",
-  "scope": "./",
+  "start_url": ".",
   "display": "standalone",
-  "orientation": "any",
   "background_color": "#f6f4ee",
   "theme_color": "#1f6e5c",
   "icons": [
     {
       "src": "icons/eduportal-icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
-      "src": "icons/eduportal-icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "maskable"
+      "type": "image/svg+xml"
     }
   ]
 }

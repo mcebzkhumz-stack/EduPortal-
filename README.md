@@ -1,101 +1,59 @@
 # EduPortal
 
-A single-file, multi-school management and learning portal (`index.html`)
-built for MNK Investments — school registration, role-based dashboards
-(Student, Teacher, Principal/Dean, Deputy, Administration, Librarian, IT
-Management), a full Tertiary/university mode, and an Owner Console for
-managing every school from one place. Everything runs client-side; there's
-no backend server to deploy.
+A single-file, multi-school education platform (StudyMate — EduPortal Core). Everything the app needs to run lives in `index.html`; the other files in this repo make it deployable and keep a hosted copy auto-updating.
 
-This repo is the deploy-ready scaffold around that one file: the extra
-static assets it references (icons, manifest, service worker, SEO files)
-plus a GitHub Action that publishes it to GitHub Pages automatically.
+## 1. Push this to a repository
 
-## Repo layout
-
-```
-index.html                     the entire app
-manifest.json                  PWA manifest ("Add to Home Screen")
-service-worker.js              minimal offline app-shell cache
-icons/eduportal-icon.svg       app icon
-browserconfig.xml              Windows tile config
-robots.txt / sitemap.xml       placeholders — see "Search engine setup" below
-.well-known/security.txt       responsible-disclosure contact (expires yearly)
-og-images/                     per-school link-preview images go here
-.github/workflows/deploy.yml   GitHub Pages deploy action
-proxy/                         optional Cloudflare Worker to hide the GitHub token (see proxy/README.md)
+```bash
+git init
+git add .
+git commit -m "Initial EduPortal deployment package"
+git branch -M main
+git remote add origin https://github.com/<your-username>/<your-repo>.git
+git push -u origin main
 ```
 
-## Deploy to GitHub Pages
+## 2. Turn on GitHub Pages (one-time)
 
-1. Push this repo to GitHub.
-2. Repo → **Settings → Pages → Build and deployment → Source** → **GitHub
-   Actions**. That's it — `.github/workflows/deploy.yml` handles the rest
-   on every push to `main`.
-3. Once deployed, the site is live at `https://{you}.github.io/{repo}/`
-   (or your custom domain, if you've set one up under Settings → Pages).
+In the repo on GitHub: **Settings → Pages → Build and deployment → Source → GitHub Actions**.
 
-The workflow also stamps the real commit SHA and deploy time into
-`index.html` in place of the `__BUILD_SHA__` / `__BUILD_DATE__`
-placeholders, so the small build-info line near the bottom of the app shows
-exactly which version is live. Opening the file straight from disk (or from
-a Claude artifact) will always show "Dev build" instead — that's expected,
-not a problem.
+That's it — no branch to pick, no folder to point at. The workflow in `.github/workflows/deploy.yml` handles the rest.
 
-## First run
+## 3. Auto-sync / auto-deploy
 
-Open the deployed site once with no `?school=` in the URL to land on the
-Owner Console sign-in (**Staff Sign In** on the landing page). The very
-first Owner account you set up controls every school registered afterward.
+From here on, deployment is automatic:
 
-## GitHub sync (optional, from inside the app)
+- Every push to `main` triggers `.github/workflows/deploy.yml`, which stamps the real commit SHA and deploy time into `index.html` (replacing the `__BUILD_SHA__` / `__BUILD_DATE__` placeholders) and publishes the site to GitHub Pages. Live in a minute or two after every push — no manual "deploy" step.
+- The small build-info line in the bottom-right corner of the live app confirms which commit is actually running.
+- You can also trigger a deploy manually from the **Actions** tab (`Deploy EduPortal to GitHub Pages → Run workflow`).
 
-Owner Console → **GitHub Registry Sync** can mirror the school directory —
-and a second, simpler file of just school emails — into a GitHub repo of
-your choice (this one or a separate one), auto-pushing on every
-registration, edit, suspend/activate, or delete. Owner Console → **Full
-Data Sync** can mirror the *entire* app database the same way. Both need:
+This covers *code* deploys. The app also has its own **data** auto-sync, configured from inside the app itself (Owner Console):
 
-- A **fine-grained GitHub Personal Access Token**, scoped to only the
-  target repo's Contents (read/write) — not a broad classic token.
-- The repo owner/org and repo name.
+- **GitHub Registry Sync** — mirrors the school directory to a JSON file in a repo of your choice, pushed automatically on every register/edit/suspend/activate/delete.
+- **Full Data Sync** — mirrors the entire app database (one JSON file per school), pushed automatically on any change anywhere in the app, using GitHub's Git Data API so it isn't capped at 1MB.
 
-Because this is a static app with no server, that token is stored in the
-browser and sent straight to `api.github.com` from there — see the warning
-shown in the panel itself. If that's a concern, use the optional Cloudflare
-Worker proxy in `proxy/` instead (`proxy/README.md` has setup steps) so the
-real token stays server-side.
+Both need a GitHub Personal Access Token, entered once in the Owner Console:
+1. Create a **fine-grained token** at https://github.com/settings/tokens/new, scoped to only the repo you want the data pushed to, with Contents read/write.
+2. In EduPortal: Owner Console → **GitHub Registry Sync** (and/or **Full Data Sync**) → paste the token, repo owner, repo name, branch, and file path(s) → Save.
+3. From then on it syncs itself — no further manual steps.
 
-## Search engine setup (per school)
+If you'd rather not keep the token in the browser at all, use the optional Cloudflare Worker proxy in `proxy/` instead (see `proxy/worker.js` for setup) and point the "Route through a proxy" fields at it.
 
-Owner Console → Registered Schools → **Search Setup**, per school,
-downloads:
+## Files in this repo
 
-- `{schoolId}-sitemap.xml` / `{schoolId}-robots.txt`
-- `{schoolId}.png` — a 1200×630 link-preview banner, baked with that
-  school's own badge and (if uploaded) one of its photos
-- `{schoolId}-logo.png` — a square logo-only version
+| Path | Purpose |
+|---|---|
+| `index.html` | The entire app — UI, logic, and storage layer |
+| `manifest.json` | PWA manifest (Add to Home Screen) |
+| `service-worker.js` | Minimal offline app-shell cache |
+| `icons/eduportal-icon.svg` | App icon (favicon, home-screen icon, Windows tile) |
+| `browserconfig.xml` | Windows tile config |
+| `.nojekyll` | Tells GitHub Pages to serve the site as-is, no Jekyll processing |
+| `.github/workflows/deploy.yml` | Auto-deploys to Pages on every push |
+| `proxy/` | Optional Cloudflare Worker so a GitHub token doesn't have to sit in the browser |
 
-Drop the banner and logo into `og-images/` (see `og-images/README.md`).
-There's also a combined sitemap covering every discoverable school at once
-(Owner Console → same panel → master sitemap download) — use that instead
-of stitching the per-school ones together by hand, and replace the
-placeholder `sitemap.xml` / `robots.txt` at the repo root with it.
+## Notes
 
-Tertiary schools get schema.org's `CollegeOrUniversity` type automatically
-in their structured data instead of the generic `EducationalOrganization`.
-
-None of this creates a Google Business Profile (the tabs/reviews/hours/map
-card you get when searching an established institution) — that's a
-separate, free listing claimed at
-[business.google.com](https://business.google.com) once the site is public.
-This just gives Google accurate data to work with when it crawls the page.
-
-## Updating the icon / manifest / service worker
-
-If you change the app's branding, regenerate `manifest.json` and
-`service-worker.js` to stay in sync — their exact contents are produced by
-`generateManifestJson()` / `generateServiceWorkerJs()` inside `index.html`,
-so copy from there (or wire a download button to them, the same way
-Search Setup already does for the other generated files) rather than
-hand-editing this repo's copies out of sync with the app.
+- This is a static, client-only app — there's no backend server. Data lives in the browser (and, optionally, wherever you point the GitHub sync or a Firebase project) rather than on GitHub Pages itself.
+- If you ever change the app's branding, regenerate `icons/eduportal-icon.svg` to match — nothing else needs to change, since `manifest.json` and the `<head>` links already point at that fixed path.
+- `manifest.json` and `service-worker.js` here match what the app's own Owner Console can (re)generate and download, if you ever need to recreate them from scratch.
