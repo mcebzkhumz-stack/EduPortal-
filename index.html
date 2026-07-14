@@ -6922,8 +6922,11 @@
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted);">Size
           <input type="range" id="wbSize" min="2" max="28" value="4" style="width:100px;">
         </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted);" title="Smooths out shaky lines as you write so handwriting comes out neater. It cleans up the ink, not text recognition.">
+          <input type="checkbox" id="wbSmooth" checked> Auto-fix handwriting
+        </label>
         <button type="button" class="btn secondary small" id="wbUndo" title="Undo last stroke">Undo</button>
-        <button type="button" class="btn secondary small" id="wbClear" title="Clear board">Clear</button>
+        <button type="button" class="btn secondary small" id="wbClear" title="Clear this page">Clear</button>
         <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-left:auto;">
           <input type="checkbox" id="wbLiveSync" checked> ${liveAvailable ? 'Live broadcast' : 'Live sync'}
         </label>
@@ -6933,6 +6936,14 @@
       <div style="border:1px solid var(--rule); border-radius:8px; overflow:hidden; background:#fff; touch-action:none;">
         <canvas id="wbCanvas" width="1200" height="640" style="display:block; width:100%; height:auto; cursor:crosshair;"></canvas>
       </div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+        <button type="button" class="btn secondary small" id="wbPagePrev" title="Previous page">‹ Prev</button>
+        <div id="wbPagesStrip" style="display:flex; gap:8px; overflow-x:auto; flex:1; padding:4px 2px; scroll-behavior:smooth;"></div>
+        <button type="button" class="btn secondary small" id="wbPageNext" title="Next page">Next ›</button>
+        <button type="button" class="btn secondary small" id="wbPageAdd" title="Add a new page">+ Page</button>
+        <button type="button" class="btn secondary small" id="wbPageDelete" title="Delete this page">Delete page</button>
+      </div>
+      <p class="muted" id="wbPageLabel" style="margin:6px 0 0; font-size:12.5px;"></p>
       <div class="grid2" style="margin-top:14px;">
         <div><label>Title</label><input type="text" id="wbTitle" placeholder="e.g. Today's board — Photosynthesis"></div>
         <div><label>Class</label><input type="text" id="wbClass" value="${escapeHtml(user.class || '')}" placeholder="e.g. Form 4A"></div>
@@ -6950,6 +6961,81 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
+
+            /* ---- Pages ----
+               A lesson board is rarely just one screenful — this keeps a
+               small stack of pages (each a PNG snapshot) that the teacher
+               can flip through with Prev/Next or the scrolling thumbnail
+               strip, add to mid-lesson, and delete when done. Only the
+               current page is ever "live" on the canvas; every other page
+               lives as a saved snapshot until it's switched to. */
+            let pages = [null]; // each entry: a PNG data URL snapshot, or null for a still-blank page
+            let pageIndex = 0;
+            function snapshotCurrentPage() { pages[pageIndex] = canvas.toDataURL('image/png'); }
+            function loadPage(idx) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const src = pages[idx];
+                if (src) {
+                    const img = new Image();
+                    img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    img.src = src;
+                }
+                undoStack = [];
+            }
+            function renderPagesStrip() {
+                const strip = main.querySelector('#wbPagesStrip');
+                if (!strip) return;
+                strip.innerHTML = '';
+                pages.forEach((p, i) => {
+                    const b = document.createElement('button');
+                    b.type = 'button';
+                    b.title = `Page ${i + 1}`;
+                    b.style.cssText = `flex:0 0 auto; width:64px; height:40px; border-radius:6px; padding:0; cursor:pointer; background:#fff url('${p || ''}') center/cover no-repeat; border:2px solid ${i === pageIndex ? 'var(--accent)' : 'var(--rule)'};`;
+                    b.onclick = () => goToPage(i);
+                    strip.appendChild(b);
+                });
+                const label = main.querySelector('#wbPageLabel');
+                if (label) label.textContent = `Page ${pageIndex + 1} of ${pages.length}`;
+                const delBtn = main.querySelector('#wbPageDelete');
+                if (delBtn) delBtn.disabled = pages.length <= 1;
+                // keep the active thumbnail in view when flipping via Prev/Next
+                const active = strip.children[pageIndex];
+                if (active && typeof active.scrollIntoView === 'function') active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+            function goToPage(idx) {
+                if (idx < 0 || idx >= pages.length || idx === pageIndex) return;
+                snapshotCurrentPage();
+                pageIndex = idx;
+                loadPage(pageIndex);
+                renderPagesStrip();
+                markPagesChanged();
+                if (liveAvailable && liveSyncBox.checked) {
+                    liveState = { baseImage: pages[pageIndex], baseVersion: liveState.baseVersion + 1, completedSinceBase: [], activeStroke: null, clearedAt: Date.now() };
+                    pushLiveState(true);
+                }
+            }
+            function addPage() {
+                snapshotCurrentPage();
+                pages.push(null);
+                pageIndex = pages.length - 1;
+                loadPage(pageIndex);
+                renderPagesStrip();
+                markPagesChanged();
+            }
+            function deletePage() {
+                if (pages.length <= 1) return;
+                if (!confirm(`Delete page ${pageIndex + 1}? This can't be undone.`)) return;
+                pages.splice(pageIndex, 1);
+                pageIndex = Math.min(pageIndex, pages.length - 1);
+                loadPage(pageIndex);
+                renderPagesStrip();
+                markPagesChanged();
+                if (liveAvailable && liveSyncBox.checked) {
+                    liveState = { baseImage: pages[pageIndex], baseVersion: liveState.baseVersion + 1, completedSinceBase: [], activeStroke: null, clearedAt: Date.now() };
+                    pushLiveState(true);
+                }
+            }
 
             const swatchWrap = main.querySelector('#wbSwatches');
             let currentColor = WB_COLORS[0];
@@ -7050,7 +7136,7 @@
                 }
             };
             main.querySelector('#wbClear').onclick = () => {
-                if (!confirm('Clear the whole board?')) return;
+                if (!confirm('Clear this page? (Other pages are untouched.)')) return;
                 pushUndo();
                 ctx.fillStyle = '#ffffff';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -7075,7 +7161,19 @@
             }
             function markDirty() {
                 dirty = true;
-                wbSaveDraftLocal(draftKey, { fileData: canvas.toDataURL('image/png'), title: main.querySelector('#wbTitle').value.trim(), class: main.querySelector('#wbClass').value.trim(), savedAt: new Date().toISOString() });
+                snapshotCurrentPage();
+                wbSaveDraftLocal(draftKey, { pages: pages.slice(), pageIndex, fileData: pages[pageIndex], title: main.querySelector('#wbTitle').value.trim(), class: main.querySelector('#wbClass').value.trim(), savedAt: new Date().toISOString() });
+                if (liveSyncBox.checked) scheduleAutoSave();
+                else setPill('● Sync paused', 'idle');
+            }
+            // Used after page navigation/add/delete, where `pages[]` is
+            // already correct but the canvas may not have finished
+            // painting the newly-loaded page yet (loadPage() draws it via
+            // an async Image.onload) — re-snapshotting here like markDirty()
+            // does would risk saving a blank frame over real page content.
+            function markPagesChanged() {
+                dirty = true;
+                wbSaveDraftLocal(draftKey, { pages: pages.slice(), pageIndex, fileData: pages[pageIndex], title: main.querySelector('#wbTitle').value.trim(), class: main.querySelector('#wbClass').value.trim(), savedAt: new Date().toISOString() });
                 if (liveSyncBox.checked) scheduleAutoSave();
                 else setPill('● Sync paused', 'idle');
             }
@@ -7095,14 +7193,16 @@
                     if (!auto) alert('Add a title and class before saving.');
                     return;
                 }
+                snapshotCurrentPage();
                 const today = new Date().toISOString().slice(0, 10);
                 const sessionKey = `${user.id}|${cls}|${today}`;
-                const fileData = canvas.toDataURL('image/png');
+                const savedPages = pages.slice();
+                const fileData = savedPages[0] || savedPages[pageIndex]; // first page stands in as the thumbnail for viewers that only render one image
                 const fileName = `${title}.png`;
                 const uploadedAt = new Date().toISOString();
 
                 // Always land the safety-net copy first — succeeds even fully offline.
-                wbSaveDraftLocal(draftKey, { fileData, title, class: cls, savedAt: uploadedAt });
+                wbSaveDraftLocal(draftKey, { pages: savedPages, pageIndex, fileData, title, class: cls, savedAt: uploadedAt });
 
                 if (!navigator.onLine) {
                     pendingSync = true;
@@ -7113,9 +7213,9 @@
                 const all = getMaterials();
                 const existingIdx = all.findIndex(m => m.wbSessionKey === sessionKey);
                 if (existingIdx > -1) {
-                    all[existingIdx] = { ...all[existingIdx], title, fileData, fileName, uploadedAt, description: 'Whiteboard snapshot' };
+                    all[existingIdx] = { ...all[existingIdx], title, fileData, fileName, uploadedAt, pages: savedPages, pageCount: savedPages.length, description: savedPages.length > 1 ? `Whiteboard snapshot (${savedPages.length} pages)` : 'Whiteboard snapshot' };
                 } else {
-                    all.push({ id: uid('mat'), title, class: cls, subject: user.subject || 'General', teacherId: user.id, teacherName: user.name, description: 'Whiteboard snapshot', fileData, fileName, uploadedAt, wbSessionKey: sessionKey });
+                    all.push({ id: uid('mat'), title, class: cls, subject: user.subject || 'General', teacherId: user.id, teacherName: user.name, description: savedPages.length > 1 ? `Whiteboard snapshot (${savedPages.length} pages)` : 'Whiteboard snapshot', fileData, fileName, uploadedAt, pages: savedPages, pageCount: savedPages.length, wbSessionKey: sessionKey });
                 }
                 const ok = saveMaterials(all);
                 if (!ok) {
@@ -7174,10 +7274,29 @@
             function strokeStyleNow() {
                 return { color: eraserOn ? '#ffffff' : currentColor, size: eraserOn ? Math.max(Number(sizeInput.value), 14) : Number(sizeInput.value) };
             }
+            /* ---- Auto-fix handwriting: smooth out hand tremor as you write ----
+               A raw pointer trail from an actual hand is jittery — this runs
+               each new point through a small exponential-moving-average
+               filter before it's drawn, so the line eases toward where the
+               hand is heading instead of jumping to every tiny wobble. The
+               effect is a noticeably calmer, neater stroke in real time; it's
+               ink smoothing, not text/character recognition, so it works
+               equally well for both handwriting and freehand diagrams. */
+            const smoothBox = main.querySelector('#wbSmooth');
+            let smLastX = 0, smLastY = 0;
+            function smoothPt(x, y, isFirst) {
+                if (!smoothBox.checked || eraserOn) { smLastX = x; smLastY = y; return { x, y }; }
+                if (isFirst) { smLastX = x; smLastY = y; return { x, y }; }
+                const alpha = 0.35; // lower = smoother but more lag behind the actual pointer, higher = more responsive but less smoothing
+                smLastX += alpha * (x - smLastX);
+                smLastY += alpha * (y - smLastY);
+                return { x: smLastX, y: smLastY };
+            }
             canvas.addEventListener('pointerdown', e => {
                 drawing = true;
                 pushUndo();
                 const p = posFromEvent(e);
+                smoothPt(p.x, p.y, true);
                 lastX = p.x; lastY = p.y;
                 canvas.setPointerCapture(e.pointerId);
                 ctx.beginPath();
@@ -7201,7 +7320,8 @@
                 ctx.beginPath();
                 ctx.moveTo(lastX, lastY);
                 for (const ce of events) {
-                    const p = posFromEvent(ce);
+                    const raw = posFromEvent(ce);
+                    const p = smoothPt(raw.x, raw.y, false);
                     ctx.lineTo(p.x, p.y);
                     lastX = p.x; lastY = p.y;
                     if (liveAvailable && liveSyncBox.checked && liveState.activeStroke) liveState.activeStroke.points.push({ x: p.x, y: p.y });
@@ -7228,30 +7348,44 @@
             }));
 
             main.querySelector('#wbDownload').onclick = () => {
+                snapshotCurrentPage();
                 const a = document.createElement('a');
                 a.href = canvas.toDataURL('image/png');
-                a.download = `${(main.querySelector('#wbTitle').value.trim() || 'whiteboard')}.png`;
+                const base = main.querySelector('#wbTitle').value.trim() || 'whiteboard';
+                a.download = pages.length > 1 ? `${base} — page ${pageIndex + 1}.png` : `${base}.png`;
                 a.click();
             };
             main.querySelector('#wbSaveMat').onclick = () => doSave(false);
+            main.querySelector('#wbPagePrev').onclick = () => goToPage(pageIndex - 1);
+            main.querySelector('#wbPageNext').onclick = () => goToPage(pageIndex + 1);
+            main.querySelector('#wbPageAdd').onclick = () => addPage();
+            main.querySelector('#wbPageDelete').onclick = () => deletePage();
+            renderPagesStrip();
 
             // Recover a board left mid-lesson (crash, closed tab, or simply no
             // connectivity to sync it earlier) so nothing drawn is ever lost.
-            if (existingDraft && existingDraft.fileData && confirm("You have an unsaved board from earlier today — restore it?")) {
-                const img = new Image();
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    if (existingDraft.title) main.querySelector('#wbTitle').value = existingDraft.title;
-                    dirty = true;
-                    pendingSync = true;
-                    if (navigator.onLine) doSave(true); else if (!liveAvailable) setPill('● Offline', 'warn');
-                    if (liveAvailable && liveSyncBox.checked) {
-                        liveState.baseImage = canvas.toDataURL('image/png');
-                        liveState.completedSinceBase = [];
-                        pushLiveState(true);
-                    }
-                };
-                img.src = existingDraft.fileData;
+            // Older drafts saved before multi-page support only have a single
+            // `fileData` snapshot; newer ones carry the whole `pages` stack.
+            const hasRestorablePages = existingDraft && (Array.isArray(existingDraft.pages) && existingDraft.pages.length ? existingDraft.pages.some(Boolean) : !!existingDraft.fileData);
+            if (hasRestorablePages && confirm("You have an unsaved board from earlier today — restore it?")) {
+                if (Array.isArray(existingDraft.pages) && existingDraft.pages.length) {
+                    pages = existingDraft.pages.slice();
+                    pageIndex = Math.min(existingDraft.pageIndex || 0, pages.length - 1);
+                } else {
+                    pages = [existingDraft.fileData];
+                    pageIndex = 0;
+                }
+                loadPage(pageIndex);
+                renderPagesStrip();
+                if (existingDraft.title) main.querySelector('#wbTitle').value = existingDraft.title;
+                dirty = true;
+                pendingSync = true;
+                if (navigator.onLine) doSave(true); else if (!liveAvailable) setPill('● Offline', 'warn');
+                if (liveAvailable && liveSyncBox.checked) {
+                    liveState.baseImage = pages[pageIndex];
+                    liveState.completedSinceBase = [];
+                    pushLiveState(true);
+                }
             } else if (existingDraft) {
                 wbClearDraftLocal(draftKey);
             }
