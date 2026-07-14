@@ -1,0 +1,55 @@
+name: Deploy EduPortal to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stamp build info into index.html
+        run: |
+          set -e
+          SHA="${{ github.sha }}"
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # index.html carries __BUILD_SHA__ / __BUILD_DATE__ placeholders
+          # (see the "Build info" section near the top of its <script>).
+          # Swapping them here — on the checked-out copy that gets deployed,
+          # never on the source in the repo — is what makes the small
+          # build-info line at the bottom of the live site show a real
+          # commit and timestamp instead of "Dev build".
+          sed -i "s/__BUILD_SHA__/${SHA}/g" index.html
+          sed -i "s/__BUILD_DATE__/${DATE}/g" index.html
+
+      - name: Ensure GitHub Pages doesn't run Jekyll on this
+        run: touch .nojekyll
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
