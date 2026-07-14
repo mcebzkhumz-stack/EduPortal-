@@ -3698,6 +3698,57 @@
             if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub write failed (${res.status}): ${t.slice(0, 200)}`); }
             return res.json();
         }
+        /* Removes the CNAME file entirely — used when the Owner clears the
+           Custom Domain field and saves, so a stale domain left over in the
+           repo doesn't get silently re-adopted by fetchRemoteCnameDomain()
+           below on the next boot, in this or any other browser. */
+        async function githubDeleteCnameFile(sha, message) {
+            const { url, headers } = githubContentsRequestInfo('contents/CNAME');
+            const cfg = getGithubConfig();
+            const res = await fetch(url, { method: 'DELETE', headers, body: JSON.stringify({ message: message || 'EduPortal: remove custom domain', sha, branch: cfg.branch || 'main' }) });
+            if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`GitHub delete failed (${res.status}): ${t.slice(0, 200)}`); }
+            return res.json();
+        }
+        /* ---- Auto-fill the working custom domain from the repo, in ANY browser ----
+           The CNAME file in the repo is the single source of truth for which
+           public address this site actually answers to — but until now, the
+           "Custom Domain" field was only ever a per-browser localStorage value,
+           so only the one browser the Owner typed it into ever generated links
+           against the branded domain; every other device/browser opening the
+           app straight from the raw OWNER.github.io/REPO/ address would keep
+           generating and displaying those raw github.io links instead, even
+           though the branded domain is live and working. Since a CNAME file's
+           only job is to be public DNS-facing anyway, it's not a secret, so
+           this reads it straight from raw.githubusercontent.com with no token
+           needed — works for a first-time visitor who has never configured
+           anything. Runs once at boot, right after auto-connect figures out
+           which repo this page belongs to, and only overwrites the local
+           Custom Domain field when the repo actually has a CNAME file; an
+           Owner who hasn't set one up yet, or who is mid-edit, is left alone. */
+        async function fetchRemoteCnameDomain(owner, repo, branch) {
+            try {
+                const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch || 'main')}/CNAME`;
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 4000); // never let a slow/dead network hold up boot
+                let res;
+                try { res = await fetch(url, { signal: controller.signal, cache: 'no-store' }); }
+                finally { clearTimeout(timer); }
+                if (!res.ok) return null; // 404 = no custom domain set for this repo yet, nothing to fill in
+                const text = await res.text();
+                return normalizeCustomDomain(text.split('\n')[0]);
+            } catch (e) { return null; } // offline, CORS hiccup, aborted — just skip, local value (if any) stands
+        }
+        async function autoFillCustomDomainFromRepo() {
+            const detected = detectGithubPagesRepo();
+            if (!detected) return; // only meaningful when actually viewing the raw github.io address — a visitor already on the branded domain has the right one via location.origin
+            const cfg = getGithubConfig();
+            const owner = cfg.owner || detected.owner;
+            const repo = cfg.repo || detected.repo;
+            const domain = await fetchRemoteCnameDomain(owner, repo, cfg.branch || 'main');
+            if (domain && domain !== normalizeCustomDomain(cfg.customDomain)) {
+                saveGithubConfig({ ...getGithubConfig(), customDomain: domain, customDomainAutoFilled: true });
+            }
+        }
         /* Best-effort background push — called after ANY change the Owner
            makes that touches the school registry (register, edit, suspend/
            activate, delete). Auto-syncs on every such change so the GitHub
@@ -11349,6 +11400,7 @@ ${justRegisteredPanel}
       <label style="margin-top:10px;">Custom Domain <span class="muted" style="font-weight:400;">(optional — the "worldwide website" address, e.g. www.eduportal.co.sz)</span></label>
       <input type="text" id="ghCustomDomain" value="${escapeHtml(githubCfg.customDomain || '')}" placeholder="www.eduportal.co.sz">
       <p class="muted" style="font-size:12px; margin:6px 0 0;">Once saved, every generated link — school access links, the "Website" share button, sitemap.xml, robots.txt, and the browser tab/link-preview tags — points at this domain instead of the raw GitHub Pages address, no matter which address you're actually viewing this page from. Pushing the registry below also writes a <code>CNAME</code> file to the repo root so GitHub Pages knows to serve this domain. You still need to point the domain's DNS at GitHub Pages yourself with your domain registrar: a <code>CNAME</code> record for <code>www</code> → <code>${escapeHtml((detectGithubPagesRepo() || {}).owner || 'yourusername')}.github.io</code>, or GitHub's four documented A records if you're using the bare domain instead of www.</p>
+      <p class="muted" style="font-size:12px; margin:6px 0 0; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">🔗 Auto-filled from this repo's own <code>CNAME</code> file — no token needed to read it, since it's public DNS information, not a secret. That means this field fills itself in correctly on <strong>every</strong> browser or device that opens the app from the raw github.io address, not just the one it was originally typed into. Clear it and save to remove the domain (this also deletes the repo's <code>CNAME</code> file, so it won't come back on the next load).</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
         <button type="button" class="btn secondary small" id="ghSaveBtn">Save settings</button>
         <button type="button" class="btn small" id="ghPushBtn">Push registry now</button>
@@ -11953,6 +12005,8 @@ ${justRegisteredPanel}
                 // If they've typed the auto-detected repo back in (or left it
                 // as-is), auto-connect stays in control going forward.
                 const isAutoRepo = !!detected && owner === detected.owner && repo === detected.repo;
+                const prevDomain = normalizeCustomDomain(getGithubConfig().customDomain);
+                const newDomain = normalizeCustomDomain(document.getElementById('ghCustomDomain').value);
                 const cfg = {
                     ...getGithubConfig(),
                     token: document.getElementById('ghToken').value.trim(),
@@ -11960,11 +12014,19 @@ ${justRegisteredPanel}
                     branch: document.getElementById('ghBranch').value.trim() || 'main',
                     path: document.getElementById('ghPath').value.trim() || 'eduportal-schools.json',
                     emailsPath: document.getElementById('ghEmailsPath').value.trim() || 'eduportal-school-emails.json',
-                    customDomain: normalizeCustomDomain(document.getElementById('ghCustomDomain').value),
+                    customDomain: newDomain,
                     manualOverride: !isAutoRepo,
                     autoDetected: isAutoRepo,
                 };
                 saveGithubConfig(cfg);
+                // Cleared a previously-set domain? Remove the CNAME file from the
+                // repo too, so autoFillCustomDomainFromRepo() doesn't bring the old
+                // domain right back on the next boot, in this or any other browser.
+                if (prevDomain && !newDomain && githubConfigured()) {
+                    githubGetCnameFile()
+                        .then(({ sha }) => sha ? githubDeleteCnameFile(sha, 'EduPortal: remove custom domain') : null)
+                        .catch(() => {});
+                }
                 alert('GitHub sync settings saved.');
                 renderOwner();
             };
@@ -13943,6 +14005,7 @@ self.addEventListener('fetch', (e) => {
         (async function boot() {
             await loadCloudCache();
             autoConnectGithubRepo();
+            await autoFillCustomDomainFromRepo(); // so the very first render already uses the branded domain, not the raw github.io one, in whichever browser this is
 
             appMode = NavDB.get('appMode', 'landing');
             currentSchoolId = NavDB.get('activeSchoolId', 'demo');
