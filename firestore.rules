@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /eduportal_kv/{docId} {
+
+      // The schools directory doc is public — needed by the landing
+      // page and login screen before anyone has signed in.
+      allow read: if docId == 'eduportal_owner_schools';
+
+      // Owner Console: full read/write to everything, once signed in
+      // via mintOwnerToken (custom claim: owner == true).
+      allow read, write: if request.auth != null
+                          && request.auth.token.owner == true;
+
+      // School users: read/write only within their own school's
+      // namespace, once signed in via mintAuthToken
+      // (custom claim: schoolId == "<their school's id>").
+      allow read, write: if request.auth != null
+                          && request.auth.token.schoolId is string
+                          && docId.matches('^studymate_' + request.auth.token.schoolId + '_.*$');
+
+      // Demo school stays open (no login needed) so visitors can try
+      // the app without an account. Remove this block if you don't
+      // want the demo world-writable.
+      allow read, write: if docId.matches('^studymate_demo_.*$');
+    }
+  }
+}
