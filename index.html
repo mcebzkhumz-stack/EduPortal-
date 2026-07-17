@@ -2231,12 +2231,12 @@
                 ask me and I can wire that in.
         */
         const FIREBASE_CONFIG = {
-            apiKey: "PASTE_YOUR_API_KEY_HERE",
-            authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
-            projectId: "PASTE_YOUR_PROJECT_ID",
-            storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
-            messagingSenderId: "PASTE_YOUR_SENDER_ID",
-            appId: "PASTE_YOUR_APP_ID"
+            apiKey: "AIzaSyDwbrplLIs2hVzts7Sqg2usNiaWbn7ZLog",
+            authDomain: "eduportal-mnk.firebaseapp.com",
+            projectId: "eduportal-mnk",
+            storageBucket: "eduportal-mnk.firebasestorage.app",
+            messagingSenderId: "710481318388",
+            appId: "1:710481318388:web:c795563c8cf6a056ace9a1"
         };
         const FIREBASE_COLLECTION = 'eduportal_kv';
 
@@ -2576,18 +2576,36 @@
             cloudQueue = result.catch(() => { }); // keep the chain alive even after a failure
             return result;
         }
+        // A Firestore rules rejection isn't a connectivity problem — it means
+        // this browser isn't (yet) signed in with the right scope for that
+        // key, which happens routinely for pre-auth background writes (e.g.
+        // seedSchoolIfNeeded()'s username/role backfill, which runs on every
+        // page load, signed in or not). Retrying won't change the outcome,
+        // and it isn't something the person needs to "check their
+        // connection" over, so it's excluded from both retries and the
+        // cloud-error banner below.
+        function isPermissionDeniedError(e) {
+            return !!e && (e.code === 'permission-denied' || e.code === 'firestore/permission-denied');
+        }
         async function retryCloud(fn, attempts = 4, delayMs = 400) {
             let lastErr;
             for (let i = 0; i < attempts; i++) {
                 try { return await fn(); }
                 catch (e) {
                     lastErr = e;
+                    if (isPermissionDeniedError(e)) break; // won't succeed on retry — fail fast
                     if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
                 }
             }
             throw lastErr;
         }
-        function showCloudSaveWarning() {
+        function showCloudSaveWarning(e) {
+            if (isPermissionDeniedError(e)) {
+                // Expected for pre-auth background writes — not a real problem,
+                // and not what "some changes couldn't be saved" would imply.
+                console.warn('Cloud write skipped (not authorized for this key yet, will retry after sign-in):', e);
+                return;
+            }
             cloudSaveError = true;
             const banner = document.getElementById('cloudErrorBanner');
             if (banner) banner.style.display = 'flex';
@@ -2666,7 +2684,7 @@
             onlineStorePushTimer = setTimeout(() => {
                 onlineStorePushTimer = null;
                 retryCloud(onlineStoreSaveNow)
-                    .catch(e => { showCloudSaveWarning(); console.error('Online store save failed', e); });
+                    .catch(e => { showCloudSaveWarning(e); console.error('Online store save failed', e); });
             }, 1200);
         }
 
@@ -2676,7 +2694,7 @@
             cloudCache[key] = val;
             if (hasCloud) {
                 queueCloud(() => window.storage.set(key, val, true))
-                    .catch(e => { showCloudSaveWarning(); console.error('Cloud save failed for', key, e); });
+                    .catch(e => { showCloudSaveWarning(e); console.error('Cloud save failed for', key, e); });
             } else if (hasRemoteStorageTarget) {
                 queueCloud(() => saveRemoteStoragePayload())
                     .then(() => {
@@ -2685,7 +2703,7 @@
                         else if (hasOneDriveStore) showStorageModeBanner('Saved to OneDrive-compatible storage target.');
                         else showStorageModeBanner('Saved to shared online storage target.');
                     })
-                    .catch(e => { showCloudSaveWarning(); console.error('Remote storage save failed', e); });
+                    .catch(e => { showCloudSaveWarning(e); console.error('Remote storage save failed', e); });
             } else {
                 try { window.localStorage.setItem(key, val); } catch (e) { console.error('Local save failed for', key, e); }
                 showLocalOnlyWarning();
@@ -2697,7 +2715,7 @@
             delete cloudCache[key];
             if (hasCloud) {
                 queueCloud(() => window.storage.delete(key, true))
-                    .catch(e => { showCloudSaveWarning(); console.error('Cloud delete failed for', key, e); });
+                    .catch(e => { showCloudSaveWarning(e); console.error('Cloud delete failed for', key, e); });
             } else if (hasRemoteStorageTarget) {
                 queueCloud(() => saveRemoteStoragePayload())
                     .then(() => {
@@ -2706,7 +2724,7 @@
                         else if (hasOneDriveStore) showStorageModeBanner('Saved to OneDrive-compatible storage target.');
                         else showStorageModeBanner('Saved to shared online storage target.');
                     })
-                    .catch(e => { showCloudSaveWarning(); console.error('Remote storage delete failed', e); });
+                    .catch(e => { showCloudSaveWarning(e); console.error('Remote storage delete failed', e); });
             } else {
                 try { window.localStorage.removeItem(key); } catch (e) { console.error('Local delete failed for', key, e); }
                 showLocalOnlyWarning();
@@ -2772,7 +2790,7 @@
                     }
                 } catch (e) {
                     console.error('Initial cloud load failed', e);
-                    showCloudSaveWarning();
+                    showCloudSaveWarning(e);
                 }
                 return;
             }
@@ -2919,7 +2937,7 @@
            schools. The original demo school keeps the original bare 'studymate_'
            prefix (so any pre-existing data is preserved); every newly registered
            school gets 'studymate_<id>_'. */
-        function schoolPrefix(id) { return (!id || id === 'demo') ? 'studymate_' : 'studymate_' + id + '_'; }
+        function schoolPrefix(id) { return 'studymate_' + (id || 'demo') + '_'; }
         let currentSchoolId = 'demo';
 
         /* ---------------- Login credentials ----------------
