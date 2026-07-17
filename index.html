@@ -2231,12 +2231,12 @@
                 ask me and I can wire that in.
         */
         const FIREBASE_CONFIG = {
-            apiKey: "AIzaSyDwbrpLLIs2hVzts7Sqg2usNiaWbn7ZLog",
-            authDomain: "eduportal-mnk.firebaseapp.com",
-            projectId: "eduportal-mnk",
-            storageBucket: "eduportal-mnk.firebasestorage.app",
-            messagingSenderId: "710481318388",
-            appId: "1:710481318388:web:c795563c8cf6a056ace9a1"
+            apiKey: "PASTE_YOUR_API_KEY_HERE",
+            authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+            projectId: "PASTE_YOUR_PROJECT_ID",
+            storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
+            messagingSenderId: "PASTE_YOUR_SENDER_ID",
+            appId: "PASTE_YOUR_APP_ID"
         };
         const FIREBASE_COLLECTION = 'eduportal_kv';
 
@@ -2315,6 +2315,20 @@
                 const docCache = new Map(); // key -> { value, ts }
                 const CACHE_TTL_MS = 5000;
 
+                // Firestore caps a single document at ~1MiB (including field
+                // overhead). EduPortal stores whole records — including base64
+                // file uploads — as one string value per key, and any of those
+                // (a resource PDF, a shared material, an assignment submission)
+                // can easily blow past that on its own, which made col.doc(key)
+                // .set() throw and the write silently show up as the generic
+                // "cloud save failed" banner. CHUNK_SIZE stays well under the
+                // real limit to leave room for JSON/field overhead; values
+                // longer than that are transparently split across numbered
+                // "<key>__chunk<N>" sibling docs and reassembled on read, so
+                // callers never have to know this happened.
+                const CHUNK_SIZE = 900000;
+                const chunkKey = (key, i) => `${key}__chunk${i}`;
+
                 // Firestore doc IDs can't contain "/" — window.storage keys in
                 // this app never do (same rule the real window.storage enforces),
                 // so keys are used as doc IDs unmodified.
@@ -2326,17 +2340,48 @@
                         }
                         const doc = await col.doc(key).get();
                         if (!doc.exists) { docCache.delete(key); return null; }
-                        const value = doc.data().value;
+                        const data = doc.data();
+                        let value;
+                        if (data.chunked) {
+                            const parts = await Promise.all(
+                                Array.from({ length: data.chunkCount }, (_, i) => col.doc(chunkKey(key, i)).get())
+                            );
+                            value = parts.map(p => (p.exists ? p.data().value : '')).join('');
+                        } else {
+                            value = data.value;
+                        }
                         docCache.set(key, { value, ts: Date.now() });
                         return { key, value, shared: true };
                     },
                     async set(key, value) {
-                        await col.doc(key).set({ value, updatedAt: Date.now() });
+                        if (value.length <= CHUNK_SIZE) {
+                            await col.doc(key).set({ value, chunked: false, updatedAt: Date.now() });
+                        } else {
+                            const chunkCount = Math.ceil(value.length / CHUNK_SIZE);
+                            const writes = [];
+                            for (let i = 0; i < chunkCount; i++) {
+                                writes.push(col.doc(chunkKey(key, i)).set({
+                                    value: value.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE),
+                                    updatedAt: Date.now(),
+                                }));
+                            }
+                            // The manifest doc goes last so a reader never sees
+                            // chunked:true before the pieces it points to exist.
+                            await Promise.all(writes);
+                            await col.doc(key).set({ chunked: true, chunkCount, updatedAt: Date.now() });
+                        }
                         docCache.set(key, { value, ts: Date.now() });
                         return { key, value, shared: true };
                     },
                     async delete(key) {
+                        const snap = await col.doc(key).get().catch(() => null);
+                        const data = snap && snap.exists ? snap.data() : null;
                         await col.doc(key).delete();
+                        if (data && data.chunked) {
+                            await Promise.all(
+                                Array.from({ length: data.chunkCount }, (_, i) => col.doc(chunkKey(key, i)).delete().catch(() => { }))
+                            );
+                        }
                         docCache.delete(key);
                         return { key, deleted: true, shared: true };
                     },
@@ -2356,8 +2401,16 @@
                             : await col.get(); // no prefix means "everything" is genuinely wanted (e.g. Owner Console)
                         const keys = [];
                         snap.forEach(d => {
+                            // Chunk pieces are an implementation detail of a real
+                            // key, not keys in their own right — never surface them.
+                            if (d.id.indexOf('__chunk') !== -1) return;
                             keys.push(d.id);
-                            docCache.set(d.id, { value: d.data().value, ts: Date.now() });
+                            const data = d.data();
+                            if (!data.chunked) docCache.set(d.id, { value: data.value, ts: Date.now() });
+                            // Chunked entries are intentionally left uncached here —
+                            // get() assembles and caches them on demand instead, so
+                            // a prefix list() doesn't have to fetch every piece of
+                            // every large file just to enumerate keys.
                         });
                         return { keys, shared: true };
                     }
@@ -2943,6 +2996,24 @@
         ].sort();
 
         function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 9); }
+
+        /* ---------------- Upload size guard ----------------
+           Every raw file upload (assignment submissions, shared materials,
+           library resources, broadcast attachments) gets base64-encoded and
+           saved as one field on one record. Checked here, before the file is
+           ever read into memory or handed to FileReader, so an oversized pick
+           fails fast with a clear message instead of stalling the page or
+           (now that large values are chunked across Firestore docs — see the
+           storage bridge above) needlessly writing dozens of chunk documents
+           for a file nobody meant to upload. */
+        const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB
+        function rejectIfFileTooLarge(file, statusEl) {
+            if (!file || file.size <= MAX_UPLOAD_BYTES) return false;
+            const msg = `That file is ${(file.size / (1024 * 1024)).toFixed(1)}MB — uploads are limited to 50MB. Try a smaller file, or paste a link instead.`;
+            if (statusEl) { statusEl.textContent = msg; if (statusEl.style) statusEl.style.color = 'var(--bad)'; }
+            else alert(msg);
+            return true;
+        }
 
         /* ---------------- School badge (crest/logo) helper ----------------
            Shrinks whatever image the user picks down to a small square before it's
@@ -6494,6 +6565,7 @@
                         const fileInput = card.querySelector('.submitFile');
                         const file = fileInput.files[0];
                         const statusEl = card.querySelector(`[data-status="${a.id}"]`);
+                        if (rejectIfFileTooLarge(file, statusEl)) return;
                         const save = (fileData, fileName) => {
                             const all = getAssignmentSubs();
                             all.push({ id: uid('asub'), assignmentId: a.id, studentId: user.id, textNote: note, fileData: fileData || '', fileName: fileName || '', submittedAt: new Date().toISOString(), grade: null, feedback: '' });
@@ -6636,6 +6708,7 @@
                 const statusEl = main.querySelector('#matStatus');
                 if (!title || !cls) { alert('Add a title and class before uploading.'); return; }
                 if (!file) { alert('Choose a file to attach.'); return; }
+                if (rejectIfFileTooLarge(file, statusEl)) return;
                 const reader = new FileReader();
                 reader.onload = () => {
                     const all = getMaterials();
@@ -8644,6 +8717,8 @@
                 const fileInput = main.querySelector('#resFile');
                 if (!title || !subject) { alert('Enter a title and subject.'); return; }
                 const file = fileInput.files[0];
+                const resStatusEl = main.querySelector('#resStatus');
+                if (rejectIfFileTooLarge(file, resStatusEl)) return;
 
                 const save = (fileData, fileName) => {
                     const resources = getResources();
@@ -8759,6 +8834,7 @@
                         };
                         const fileInput = main.querySelector(`#eFile-${res.id}`);
                         const file = fileInput.files[0];
+                        if (rejectIfFileTooLarge(file)) return;
                         const commit = (fileData, fileName) => {
                             if (fileData) { updated.fileData = fileData; updated.fileName = fileName; }
                             const resources2 = getResources().map(r => r.id === res.id ? updated : r);
@@ -12170,6 +12246,7 @@ ${justRegisteredPanel}
                 const statusEl = document.getElementById('mbcStatus');
                 if (!title) { statusEl.textContent = 'Add a title first.'; statusEl.style.color = 'var(--bad)'; return; }
                 if (!file) { statusEl.textContent = 'Choose a file to attach.'; statusEl.style.color = 'var(--bad)'; return; }
+                if (rejectIfFileTooLarge(file, statusEl)) return;
                 if (!confirm(`Share this file with all ${total} school${total === 1 ? '' : 's'}?`)) return;
                 const reader = new FileReader();
                 reader.onload = () => {
@@ -12237,6 +12314,7 @@ ${justRegisteredPanel}
                     const statusEl = document.getElementById('ocMatStatus');
                     if (!title) { statusEl.textContent = 'Add a title first.'; statusEl.style.color = 'var(--bad)'; return; }
                     if (!file) { statusEl.textContent = 'Choose a file to attach.'; statusEl.style.color = 'var(--bad)'; return; }
+                    if (rejectIfFileTooLarge(file, statusEl)) return;
                     const reader = new FileReader();
                     reader.onload = () => {
                         withSchool(contentSchool.id, () => {
