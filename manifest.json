@@ -2,6 +2,8 @@
   "name": "EduPortal",
   "short_name": "EduPortal",
   "start_url": ".",
+  "scope": "./",
+  "id": "./",
   "display": "standalone",
   "background_color": "#f6f4ee",
   "theme_color": "#1f6e5c",

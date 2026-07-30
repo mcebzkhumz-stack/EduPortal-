@@ -1,101 +1,74 @@
 # EduPortal
 
-A single-file, multi-school management and learning portal (`index.html`)
-built for MNK Investments — school registration, role-based dashboards
-(Student, Teacher, Principal/Dean, Deputy, Administration, Librarian, IT
-Management), a full Tertiary/university mode, and an Owner Console for
-managing every school from one place. Everything runs client-side; there's
-no backend server to deploy.
+A single-file school management platform (Owner, Principal, Teacher, Student,
+Bursar, Librarian, Parent) with per-school customization, a tertiary/academic
+suite, live calls, and a digital whiteboard. Everything runs client-side out
+of `index.html`; this repo just adds the small set of static files that make
+it installable, offline-tolerant, and deployable as a real site.
 
-This repo is the deploy-ready scaffold around that one file: the extra
-static assets it references (icons, manifest, service worker, SEO files)
-plus a GitHub Action that publishes it to GitHub Pages automatically.
+## What's in this repo
 
-## Repo layout
+| File | Purpose |
+|---|---|
+| `index.html` | The entire application. |
+| `manifest.json` | Web app manifest — lets people "Add to Home Screen". |
+| `service-worker.js` | Minimal offline cache for the app shell (not app data). |
+| `icons/eduportal-icon.svg` | App icon used by the manifest, favicon, and browserconfig. |
+| `browserconfig.xml` | Windows/Edge tile theming. |
+| `.github/workflows/deploy.yml` | Builds and publishes the site to GitHub Pages on every push to `main`. |
+| `.nojekyll` | Tells GitHub Pages to serve files as-is, skipping Jekyll processing. |
 
-```
-index.html                     the entire app
-manifest.json                  PWA manifest ("Add to Home Screen")
-service-worker.js              minimal offline app-shell cache
-icons/eduportal-icon.svg       app icon
-browserconfig.xml              Windows tile config
-robots.txt / sitemap.xml       placeholders — see "Search engine setup" below
-.well-known/security.txt       responsible-disclosure contact (expires yearly)
-og-images/                     per-school link-preview images go here
-.github/workflows/deploy.yml   GitHub Pages deploy action
-proxy/                         optional Cloudflare Worker to hide the GitHub token (see proxy/README.md)
-```
+## 1. Deploy to GitHub Pages
 
-## Deploy to GitHub Pages
+1. Push this repo's contents to a GitHub repository (public or private — Pages works with either on a paid plan; public repos get it free).
+2. In the repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+3. Push to `main` (or run the workflow manually from the **Actions** tab). The included workflow will:
+   - Stamp the real commit SHA and deploy timestamp into `index.html`'s build-info placeholders (this only touches the deployed copy, never your source).
+   - Publish everything to Pages.
+4. Your site will be live at `https://<your-username>.github.io/<repo-name>/`.
 
-1. Push this repo to GitHub.
-2. Repo → **Settings → Pages → Build and deployment → Source** → **GitHub
-   Actions**. That's it — `.github/workflows/deploy.yml` handles the rest
-   on every push to `main`.
-3. Once deployed, the site is live at `https://{you}.github.io/{repo}/`
-   (or your custom domain, if you've set one up under Settings → Pages).
+No build step, bundler, or `npm install` is needed — it's static files.
 
-The workflow also stamps the real commit SHA and deploy time into
-`index.html` in place of the `__BUILD_SHA__` / `__BUILD_DATE__`
-placeholders, so the small build-info line near the bottom of the app shows
-exactly which version is live. Opening the file straight from disk (or from
-a Claude artifact) will always show "Dev build" instead — that's expected,
-not a problem.
+## 2. GitHub auto-connect (repository sync)
 
-## First run
+The app already knows which repository it's hosted in: on load, it reads its
+own GitHub Pages URL (`https://OWNER.github.io/REPO/...`) and automatically
+fills in the owner, repo, and branch used for its optional GitHub-backed data
+sync (Owner Console → GitHub Registry Sync). You don't need to type those in.
 
-Open the deployed site once with no `?school=` in the URL to land on the
-Owner Console sign-in (**Staff Sign In** on the landing page). The very
-first Owner account you set up controls every school registered afterward.
+To turn sync on, you still need to paste in a **Personal Access Token** once,
+in that same panel:
 
-## GitHub sync (optional, from inside the app)
+- Use a **fine-grained token scoped to only this one repository**, with
+  **Contents: Read and write** permission — not a broad classic token.
+- This is a static, browser-only app with no server of its own. The token is
+  stored in that browser and sent straight to `api.github.com` — it is not
+  hidden from anyone with access to that device. Don't paste a real token
+  into a copy of this file you hand to someone else.
+- If you ever want to point sync at a *different* repository than the one
+  hosting the site, you can type different values into that panel — the app
+  will remember that as a deliberate choice and stop auto-detecting.
 
-Owner Console → **GitHub Registry Sync** can mirror the school directory —
-and a second, simpler file of just school emails — into a GitHub repo of
-your choice (this one or a separate one), auto-pushing on every
-registration, edit, suspend/activate, or delete. Owner Console → **Full
-Data Sync** can mirror the *entire* app database the same way. Both need:
+## 3. Optional: Firebase (cross-device real-time sync)
 
-- A **fine-grained GitHub Personal Access Token**, scoped to only the
-  target repo's Contents (read/write) — not a broad classic token.
-- The repo owner/org and repo name.
+Without Firebase, the app still fully works using an online-store/localStorage
+fallback. To enable real-time cross-device sync (needed for things like the
+live whiteboard broadcast and instant messaging), open `index.html`, find the
+`FIREBASE_CONFIG` block near the top of the `<script>`, and replace the
+`PASTE_...` placeholders with values from your own Firebase project. This is
+optional and the app clearly logs a console warning (not an error) when it's
+left unconfigured.
 
-Because this is a static app with no server, that token is stored in the
-browser and sent straight to `api.github.com` from there — see the warning
-shown in the panel itself. If that's a concern, use the optional Cloudflare
-Worker proxy in `proxy/` instead (`proxy/README.md` has setup steps) so the
-real token stays server-side.
+## 4. Branding
 
-## Search engine setup (per school)
+Swap `icons/eduportal-icon.svg` for your own logo (keep the filename, or
+update the three references to it in `index.html`'s `<head>` and in
+`manifest.json` / `browserconfig.xml`). The Owner Console also has per-school
+customization (accent colors, disabled roles/tabs) that doesn't require
+touching any files.
 
-Owner Console → Registered Schools → **Search Setup**, per school,
-downloads:
+## Local preview
 
-- `{schoolId}-sitemap.xml` / `{schoolId}-robots.txt`
-- `{schoolId}.png` — a 1200×630 link-preview banner, baked with that
-  school's own badge and (if uploaded) one of its photos
-- `{schoolId}-logo.png` — a square logo-only version
-
-Drop the banner and logo into `og-images/` (see `og-images/README.md`).
-There's also a combined sitemap covering every discoverable school at once
-(Owner Console → same panel → master sitemap download) — use that instead
-of stitching the per-school ones together by hand, and replace the
-placeholder `sitemap.xml` / `robots.txt` at the repo root with it.
-
-Tertiary schools get schema.org's `CollegeOrUniversity` type automatically
-in their structured data instead of the generic `EducationalOrganization`.
-
-None of this creates a Google Business Profile (the tabs/reviews/hours/map
-card you get when searching an established institution) — that's a
-separate, free listing claimed at
-[business.google.com](https://business.google.com) once the site is public.
-This just gives Google accurate data to work with when it crawls the page.
-
-## Updating the icon / manifest / service worker
-
-If you change the app's branding, regenerate `manifest.json` and
-`service-worker.js` to stay in sync — their exact contents are produced by
-`generateManifestJson()` / `generateServiceWorkerJs()` inside `index.html`,
-so copy from there (or wire a download button to them, the same way
-Search Setup already does for the other generated files) rather than
-hand-editing this repo's copies out of sync with the app.
+Just open `index.html` in a browser — no server required for basic use.
+Some features (manifest install prompt, service worker) only activate when
+served over `http(s)://`, e.g. via `python3 -m http.server` from this folder.

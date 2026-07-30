@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EduPortal — Operations & Deployment Manual</title>
+<style>
+  :root{
+    --gold:#8A6D3B;
+    --dark:#1F2A24;
+    --light:#F4F1EA;
+    --rule:#C9BFA5;
+    --text:#242424;
+    --muted:#5b5b5b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Segoe UI", Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+    color:var(--text);
+    background:#fdfcfa;
+    line-height:1.6;
+  }
+  .cover{
+    min-height:92vh;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:6vh 8vw;
+    background:linear-gradient(180deg,#ffffff 0%, var(--light) 100%);
+    border-bottom:1px solid var(--rule);
+  }
+  .cover h1{
+    font-size:56px;
+    margin:0 0 8px 0;
+    color:var(--dark);
+    letter-spacing:-1px;
+  }
+  .cover .subtitle{
+    font-style:italic;
+    color:var(--gold);
+    font-size:20px;
+    margin:0 0 28px 0;
+  }
+  .cover .doctitle{
+    font-size:26px;
+    font-weight:700;
+    margin:0 0 6px 0;
+  }
+  .cover .tagline{
+    color:var(--muted);
+    font-size:16px;
+    margin:0 0 40px 0;
+  }
+  .cover hr{
+    border:none;
+    border-top:1px solid var(--rule);
+    margin:0 0 20px 0;
+  }
+  .cover .meta p{
+    margin:4px 0;
+    font-size:14.5px;
+    color:var(--muted);
+  }
+  main{
+    max-width:880px;
+    margin:0 auto;
+    padding:48px 8vw 100px 8vw;
+  }
+  nav.toc{
+    background:var(--light);
+    border:1px solid var(--rule);
+    border-radius:6px;
+    padding:24px 28px;
+    margin:0 0 48px 0;
+  }
+  nav.toc h2{
+    margin-top:0;
+    font-size:18px;
+    color:var(--gold);
+    border:none;
+  }
+  nav.toc ol{
+    margin:0;
+    padding-left:20px;
+  }
+  nav.toc li{
+    margin:6px 0;
+  }
+  nav.toc a{
+    color:var(--text);
+    text-decoration:none;
+  }
+  nav.toc a:hover{
+    color:var(--gold);
+    text-decoration:underline;
+  }
+  h1{
+    font-size:27px;
+    color:var(--gold);
+    border-bottom:1px solid var(--rule);
+    padding-bottom:10px;
+    margin:56px 0 20px 0;
+  }
+  h1:first-of-type{margin-top:0;}
+  h2{
+    font-size:20px;
+    color:var(--dark);
+    margin:32px 0 12px 0;
+  }
+  h3{
+    font-size:17px;
+    color:var(--gold);
+    margin:22px 0 8px 0;
+  }
+  p{
+    margin:0 0 16px 0;
+    font-size:16px;
+  }
+  ul, ol{
+    margin:0 0 18px 0;
+    padding-left:24px;
+  }
+  li{
+    margin:6px 0;
+    font-size:16px;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:0 0 24px 0;
+    font-size:15px;
+  }
+  th{
+    background:var(--dark);
+    color:#fff;
+    text-align:left;
+    padding:10px 14px;
+  }
+  td{
+    padding:10px 14px;
+    border:1px solid #e2ddd0;
+    vertical-align:top;
+  }
+  tr:nth-child(even) td{
+    background:#faf9f6;
+  }
+  .callout{
+    background:var(--light);
+    border:1px solid var(--rule);
+    border-radius:6px;
+    padding:18px 22px;
+    margin:0 0 24px 0;
+  }
+  .callout h4{
+    margin:0 0 10px 0;
+    color:var(--gold);
+    font-size:16px;
+  }
+  .callout ul{
+    list-style:none;
+    padding-left:0;
+    margin:0;
+  }
+  .callout li{
+    margin:6px 0;
+    font-size:15px;
+  }
+  code, .inline-code{
+    font-family:"Consolas","Courier New",monospace;
+    background:#efece3;
+    padding:1px 6px;
+    border-radius:3px;
+    font-size:14.5px;
+  }
+  .tier{
+    border-left:4px solid var(--gold);
+    padding-left:16px;
+    margin-bottom:20px;
+  }
+  footer{
+    max-width:880px;
+    margin:0 auto;
+    padding:0 8vw 60px 8vw;
+    color:var(--muted);
+    font-size:13.5px;
+    border-top:1px solid var(--rule);
+    padding-top:20px;
+  }
+  @media print{
+    .cover{min-height:auto; page-break-after:always;}
+    nav.toc{page-break-after:always;}
+    h1{page-break-before:always;}
+    h1:first-of-type{page-break-before:auto;}
+  }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>EduPortal</h1>
+  <p class="subtitle">StudyMate — EduPortal Core</p>
+  <p class="doctitle">Operations &amp; Deployment Manual</p>
+  <p class="tagline">A single-file, multi-tenant school and learning management platform</p>
+  <hr>
+  <div class="meta">
+    <p>Prepared for: Vuyiswa</p>
+    <p>Covers: deployment, hosting environments, and full multi-site configuration</p>
+    <p>Generated: July 2026</p>
+  </div>
+</div>
+
+<main>
+
+<nav class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#sec1">What EduPortal Is</a></li>
+    <li><a href="#sec2">Roles at a Glance</a></li>
+    <li><a href="#sec3">Where EduPortal Works Best</a></li>
+    <li><a href="#sec4">What's Needed to Use It on Every Website (Full Multi-Site Setup)</a></li>
+    <li><a href="#sec5">Day-to-Day Notes</a></li>
+    <li><a href="#sec6">Support</a></li>
+  </ol>
+</nav>
+
+<h1 id="sec1">1. What EduPortal Is</h1>
+<p>EduPortal (branded in the browser tab as <em>StudyMate — EduPortal Core</em>) is a self-contained school management and learning platform built as a single HTML file with no build step and no framework. Everything — markup, styling, and application logic — lives in one <code>index.html</code>, which makes it something you can host almost anywhere a browser can reach: GitHub Pages, a custom domain, a plain web server, or even opened straight off a hard drive.</p>
+<p>The same file adapts itself to two kinds of institutions — schools (primary/secondary) and tertiary institutions (colleges/universities) — and to seven roles: Owner, Admin/Principal, Teacher, Student/Learner, plus supporting tertiary roles such as Registrar-facing views. Which features a person sees is decided at login, not by separate builds.</p>
+<p>Because it is one file, "installing" EduPortal anywhere is really just publishing that file (plus a couple of optional companion files) to a web host. The rest of this manual is about doing that properly, and about what to configure so every copy — on every domain it's published to — behaves like the full product instead of a stripped-down preview.</p>
+
+<h1 id="sec2">2. Roles at a Glance</h1>
+<table>
+  <thead>
+    <tr><th>Role</th><th>Typical user</th><th>What they work in</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Owner</td><td>Vuyiswa / platform operator</td><td>Owner Console — creates schools, manages GitHub sync, broadcasts to all schools, generates the sitemap, has scoped access to every school</td></tr>
+    <tr><td>Admin / Principal</td><td>School head, office staff</td><td>Enrolment, staff, timetable, behaviour log, school profile, Apply Now review</td></tr>
+    <tr><td>Teacher</td><td>Teaching staff</td><td>Class materials, whiteboard, behaviour log entries, timetable, Quantum Lab</td></tr>
+    <tr><td>Student / Learner</td><td>Enrolled learners</td><td>Class materials download, timetable, Quantum Lab, degree audit (tertiary)</td></tr>
+    <tr><td>Tertiary-specific views</td><td>Registrar-facing</td><td>Faculties directory, Degree Audit, Module &amp; Exam Timetable, Student Services</td></tr>
+  </tbody>
+</table>
+<p>The Owner Console sits above all of this: an Owner can switch into any school's context ("owner access mode") to see exactly what that school's users see, without needing a separate login for every school.</p>
+
+<h1 id="sec3">3. Where EduPortal Works Best</h1>
+<p>EduPortal is built to run anywhere, but it is not equally capable everywhere. The file detects its own hosting environment at boot and turns features on or off accordingly. In order, from most to least capable:</p>
+
+<div class="tier">
+  <h2>3.1 Best: GitHub Pages + Firestore (production)</h2>
+  <p>This is the environment the app is designed around, and where it should live for real school use:</p>
+  <ul>
+    <li>Every visitor gets the same live data — enrolments, materials, whiteboard boards, timetables — because Firestore (or an equivalent online backend) is the shared source of truth, not each visitor's own browser.</li>
+    <li>The app auto-detects that it is on a <code>*.github.io</code> URL and infers its own GitHub owner/repo, so GitHub-based sync (registry sync, full backup sync, custom-domain CNAME management) works with almost no manual configuration beyond a Personal Access Token.</li>
+    <li>Real-time features — the collaborative whiteboard's live drawing, viewer-count-aware sync — only run in this configuration; they are explicitly disabled in preview/offline contexts.</li>
+    <li>A custom domain (including a "www." domain) can be layered on top of GitHub Pages via a CNAME file, and the app keeps that domain in sync automatically.</li>
+  </ul>
+</div>
+
+<div class="tier">
+  <h2>3.2 Good, with caveats: a custom domain or your own web server</h2>
+  <p>Serving the same file from a plain web server or a custom domain not proxied through GitHub Pages works, but the automatic "which GitHub repo am I" detection has nothing to key off, so GitHub sync must be configured manually (owner, repo, branch, and token) in the Owner Console rather than being inferred. Firestore-backed sync still works normally once Firebase is configured, since that part of the app doesn't care what domain it's served from.</p>
+</div>
+
+<div class="tier">
+  <h2>3.3 Limited: opened from disk, or previewed inside Claude.ai</h2>
+  <p>If the file is opened directly from a local disk, or rendered as a preview inside an environment like Claude.ai, several things are deliberately scaled back:</p>
+  <ul>
+    <li>No GitHub repo can be inferred (there is no GitHub Pages URL to read it from).</li>
+    <li>Live, frame-by-frame whiteboard streaming is disabled — students still get autosaved snapshots into Class Materials, but not real-time drawing.</li>
+    <li>If no Firestore project is configured, the app quietly falls back to that one browser's local storage, so data will not be visible to anyone opening the app on a different device.</li>
+  </ul>
+  <p>This tier is fine for demos, screenshots, and local testing, but it is not where a school should run day-to-day operations.</p>
+</div>
+
+<h1 id="sec4">4. What's Needed to Use It on Every Website (Full Multi-Site Setup)</h1>
+<p>Because EduPortal is one static file, the same copy can be published to as many places as needed — a GitHub Pages URL, one or more custom domains, or mirrored onto another static host — and every copy can share the same live data, provided the following are configured once. These are the pieces that make the difference between "a copy that works" and "a copy that's fully wired up":</p>
+
+<h2>4.1 A shared online backend (Firestore)</h2>
+<p>Without this, each browser/device only ever sees its own local data. With it, every deployment of the file — regardless of which domain served it — reads and writes the same shared records.</p>
+<ol>
+  <li>Create a free Firebase project at <code>console.firebase.google.com</code> (the Spark/free plan is sufficient at this scale).</li>
+  <li>Register a Web app under Project settings → General → Your apps, and copy the generated <code>firebaseConfig</code> values into the <code>FIREBASE_CONFIG</code> block near the top of <code>index.html</code>.</li>
+  <li>Create a Firestore database (production mode, region close to your users).</li>
+  <li>Publish Firestore security rules that open read/write on the single <code>eduportal_kv</code> collection the app uses (the exact rule block is documented inline in the file, immediately above <code>FIREBASE_CONFIG</code>).</li>
+  <li>Optional but recommended for real access control: deploy the two Cloud Functions (<code>mintAuthToken</code>, <code>mintOwnerToken</code>) referenced in <code>functions/index.js</code>, and paste the resulting base URL into <code>FIREBASE_FUNCTIONS_BASE</code>. Until this is filled in, login checks happen only in the browser, which deters casual access but is not real security.</li>
+</ol>
+
+<h2>4.2 GitHub sync, secured through a proxy</h2>
+<p>The Owner Console can mirror the school registry and full backups to a GitHub repository via the GitHub Contents API. On GitHub Pages, the owner and repo are inferred automatically from the URL; on any other domain they must be entered manually in the Owner Console's GitHub Registry Sync panel. Either way, a Personal Access Token is required, and — as the in-app warning notes — a token typed directly into this static page is visible to anyone with access to that browser.</p>
+<p>To close that gap, route every GitHub Contents API call through a small Cloudflare Worker proxy that holds the token server-side instead of in the browser. This is tracked as ongoing work on this project: the proxy needs to sit in front of every Contents API call uniformly, not just some of them, so no code path accidentally sends a raw token to <code>api.github.com</code> from the client.</p>
+
+<h2>4.3 Custom domains</h2>
+<p>Any domain — apex or "www." — can front the GitHub Pages deployment by adding a CNAME file to the repository. Once set, the app reads that CNAME back (via a no-token, read-only fetch from <code>raw.githubusercontent.com</code>) so the Owner Console's Custom Domain field auto-fills correctly in any browser, not just the one it was originally typed into.</p>
+
+<h2>4.4 One shared link format across every domain</h2>
+<p>Regardless of which domain a given deployment lives on, individual schools are addressed the same way: a <code>?school=&lt;id&gt;</code> query parameter (for example, <code>?school=buhleni-high-school</code>) routes a visitor straight into that school's context, sets the browser tab title and link-preview (Open Graph / Twitter Card) tags to that school's name, and is what search engines and chat-app link previews read. This is what makes it possible to hand out a clean per-school link no matter which domain is currently serving the file.</p>
+
+<h2>4.5 Checklist — full multi-site readiness</h2>
+<div class="callout">
+  <h4>Before treating a deployment as production-ready:</h4>
+  <ul>
+    <li>☐ Firebase project created and <code>FIREBASE_CONFIG</code> filled in (not the placeholder values)</li>
+    <li>☐ Firestore rules published</li>
+    <li>☐ Cloud Functions deployed and <code>FIREBASE_FUNCTIONS_BASE</code> set, for real login security</li>
+    <li>☐ GitHub sync configured (auto on GitHub Pages; manual owner/repo/branch/token elsewhere)</li>
+    <li>☐ GitHub token routed through the Cloudflare Worker proxy, not stored raw in the browser</li>
+    <li>☐ Custom domain CNAME set, if applicable, and confirmed to auto-fill in a second browser</li>
+    <li>☐ SEO/meta tags verified per school by opening a <code>?school=</code> link and checking the tab title</li>
+  </ul>
+</div>
+
+<h1 id="sec5">5. Day-to-Day Notes</h1>
+<ul>
+  <li>Owner Console: create/manage schools, broadcast announcements to all schools at once, and generate a sitewide sitemap.</li>
+  <li>Class Materials: teachers upload files; students download them from the same tab.</li>
+  <li>Collaborative Whiteboard: live drawing requires the production (GitHub Pages + Firestore) deployment; elsewhere it still autosaves snapshots into Class Materials.</li>
+  <li>Tertiary institutions additionally get a public Apply Now form, a Faculties directory, a Google-Knowledge-Panel-style School Profile page, and a Degree Audit page.</li>
+  <li>Passwordless sign-in is supported, with in-portal password management for anyone who prefers a password.</li>
+</ul>
+
+<h1 id="sec6">6. Support</h1>
+<p>This manual reflects the state of the uploaded <code>index.html</code> as of this document's generation date. Because the whole application is one evolving file, re-generate this manual after major feature changes so it stays accurate.</p>
+
+</main>
+
+<footer>
+  EduPortal — Operations &amp; Deployment Manual · Generated July 2026
+</footer>
+
+</body>
+</html>

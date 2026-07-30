@@ -35,6 +35,8 @@
     <meta id="twitterImage" name="twitter:image" content="">
     <meta name="twitter:site" content="@eduportal">
     <meta name="theme-color" content="#1f6e5c">
+    <meta name="google-site-verification" content="">
+    <meta name="robots" content="index,follow">
     <meta name="application-name" content="EduPortal">
     <meta name="msapplication-TileColor" content="#1f6e5c">
     <meta name="msapplication-config" content="browserconfig.xml">
@@ -42,6 +44,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="EduPortal">
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <link rel="icon" href="icons/eduportal-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/eduportal-icon.svg">
     <script id="seoJsonLd" type="application/ld+json">{}</script>
@@ -97,6 +101,37 @@
 
         .topbar-left {
             order: 1;
+        }
+
+        .pwa-install-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid var(--accent);
+            background: var(--accent);
+            color: #fff;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform .2s ease, box-shadow .2s ease;
+        }
+
+        .pwa-install-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(31, 110, 92, .18);
+        }
+
+        .pwa-install-btn:disabled {
+            opacity: .75;
+            cursor: wait;
+        }
+
+        .sync-storage-btn {
+            border-color: var(--warn);
+            background: var(--warn);
         }
 
         .tab-menu-wrap {
@@ -1913,6 +1948,15 @@
         /* ---------------- Live Calls (WebRTC audio/video) ---------------- */
         #callsBellBtn { position: relative; }
         #callsBellBtn .bell-dot { display: none; position: absolute; top: 2px; right: 2px; width: 9px; height: 9px; border-radius: 50%; background: var(--bad); border: 2px solid var(--panel); }
+        #notificationsBtn { position: relative; }
+        .notif-badge { display: none; position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bad); color: #fff; font-size: 10.5px; font-weight: 700; align-items: center; justify-content: center; line-height: 16px; }
+        .notif-panel { width: 280px; max-height: 0; padding: 0; overflow: hidden; }
+        .notif-panel.open { max-height: min(420px, 70vh); overflow-y: auto; padding: 8px; }
+        .notif-item { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: var(--panel); }
+        .notif-item.warning { border-color: var(--warn); background: var(--warn-soft); }
+        .notif-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+        .notif-message { font-size: 12px; color: var(--muted); line-height: 1.35; }
+        .notif-empty { padding: 12px 10px; font-size: 12.5px; color: var(--muted); }
         #callsBellBtn.ringing .bell-dot { display: block; }
         .presence-dot { display: inline-block; border-radius: 50%; background: var(--muted); flex-shrink: 0; vertical-align: middle; }
         .presence-dot.online { background: #2f9e5c; box-shadow: 0 0 0 2px rgba(47, 158, 92, 0.18); }
@@ -2029,14 +2073,6 @@
 
     <div id="ownerPwModalOverlay" style="display:none;"></div>
 
-    <div id="cloudErrorBanner"
-        style="display:none; position:fixed; left:0; right:0; bottom:0; z-index:9998; background:#a8531f; color:#fff; font-family:'IBM Plex Sans',-apple-system,Segoe UI,sans-serif; font-size:13px; padding:10px 16px; align-items:center; justify-content:center; gap:10px; text-align:center;">
-        <span>Some changes couldn't be saved to the cloud just now. Check your connection — recent edits may not have
-            synced.</span>
-        <button onclick="document.getElementById('cloudErrorBanner').style.display='none'"
-            style="background:none; border:1px solid #fff; color:#fff; border-radius:5px; padding:3px 9px; cursor:pointer; font-size:12px;">Dismiss</button>
-    </div>
-
     <div id="landingView" style="display:none; min-height:100vh; align-items:center; justify-content:center; flex-direction:column; padding:40px 20px; gap:28px; position:relative;">
         <div style="position:fixed; top:16px; left:16px; z-index:150;">
             <button type="button" class="role-menu-btn" id="landingRoleMenuBtn">
@@ -2107,6 +2143,12 @@
                         <span class="chev">▾</span>
                     </button>
                     <div class="role-menu-panel" id="roleMenuPanel"></div>
+                </div>
+                <div class="role-menu-wrap" style="position:relative;">
+                    <button class="owner-btn" id="notificationsBtn" title="Notifications">🔔
+                        <span class="notif-badge" id="notificationsBadge"></span>
+                    </button>
+                    <div class="role-menu-panel notif-panel" id="notificationsPanel"></div>
                 </div>
                 <div class="brand">
                     <span class="mark">EP</span>
@@ -2260,12 +2302,12 @@
                 ask me and I can wire that in.
         */
         const FIREBASE_CONFIG = {
-            apiKey: "PASTE_YOUR_API_KEY_HERE",
-            authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
-            projectId: "PASTE_YOUR_PROJECT_ID",
-            storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
-            messagingSenderId: "PASTE_YOUR_SENDER_ID",
-            appId: "PASTE_YOUR_APP_ID"
+            apiKey: "AIzaSyDwbrplLIs2hVzts7Sqg2usNiaWbn7ZLog",
+            authDomain: "eduportal-mnk.firebaseapp.com",
+            projectId: "eduportal-mnk",
+            storageBucket: "eduportal-mnk.firebasestorage.app",
+            messagingSenderId: "710481318388",
+            appId: "1:710481318388:web:c795563c8cf6a056ace9a1"
         };
         const FIREBASE_COLLECTION = 'eduportal_kv';
 
@@ -2281,7 +2323,7 @@
            gets back. Fill in the URL below after `firebase deploy --only
            functions` (see functions/index.js for the deploy steps) — until
            then this stays a no-op and the app behaves exactly as before. */
-        const FIREBASE_FUNCTIONS_BASE = "PASTE_YOUR_FUNCTIONS_BASE_URL_HERE"; // e.g. https://us-central1-yourproject.cloudfunctions.net
+        const FIREBASE_FUNCTIONS_BASE = "";
         function functionsConfigured() {
             return !!FIREBASE_FUNCTIONS_BASE && FIREBASE_FUNCTIONS_BASE.indexOf('PASTE_') !== 0;
         }
@@ -2317,7 +2359,7 @@
             return data;
         }
 
-        (function initFirebaseStorageBridge() {
+        function initFirebaseStorageBridge() {
             if (window.storage) return; // already inside Claude.ai — leave it alone
             if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.indexOf('PASTE_') === 0) {
                 console.warn('EduPortal: Firebase not configured yet — fill in FIREBASE_CONFIG. Falling back to the online-store / localStorage tiers below.');
@@ -2448,7 +2490,7 @@
             } catch (e) {
                 console.error('EduPortal: Firebase storage bridge failed to initialize', e);
             }
-        })();
+        }
 
         /* ---------------- Cloud storage layer ----------------
            EduPortal persists to shared online storage instead of the browser's
@@ -2611,10 +2653,10 @@
             }
             throw lastErr;
         }
-        function showCloudSaveWarning() {
+        function showCloudSaveWarning(detail) {
             cloudSaveError = true;
-            const banner = document.getElementById('cloudErrorBanner');
-            if (banner) banner.style.display = 'flex';
+            const message = detail && typeof detail === 'string' ? detail : 'Some changes could not be saved to the cloud just now. Recent edits may not have synced yet.';
+            pushNotification({ title: 'Cloud sync issue', message, kind: 'warning' });
         }
         async function saveRemoteStoragePayload() {
             if (hasCloud) {
@@ -6453,6 +6495,63 @@
            active school split into Online / Offline, refreshed on every
            render() so it stays live as heartbeats and background sync land
            from other devices. Mirrors the calls bell's show/hide pattern. */
+        const appNotifications = [];
+        let notificationsOpen = false;
+
+        function pushNotification({ title, message, kind = 'info', id }) {
+            const text = (message || '').toString().trim();
+            if (!text) return;
+            const entry = { id: id || `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, title: (title || 'Notification').toString(), message: text, kind, ts: Date.now() };
+            const duplicate = appNotifications.find(n => n.title === entry.title && n.message === entry.message && (Date.now() - n.ts) < 8000);
+            if (duplicate) {
+                duplicate.ts = Date.now();
+            } else {
+                appNotifications.unshift(entry);
+                appNotifications.splice(8);
+            }
+            notificationsOpen = true;
+            updateNotificationBell();
+        }
+
+        function renderNotificationsPanel() {
+            const panel = document.getElementById('notificationsPanel');
+            if (!panel) return;
+            if (!notificationsOpen || !appNotifications.length) {
+                panel.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+                panel.classList.remove('open');
+                return;
+            }
+            panel.innerHTML = appNotifications.map(n => `
+                <div class="notif-item ${n.kind === 'warning' ? 'warning' : ''}">
+                    <div class="notif-title">${escapeHtml(n.title || 'Notification')}</div>
+                    <div class="notif-message">${escapeHtml(n.message || '')}</div>
+                </div>
+            `).join('');
+            panel.classList.add('open');
+        }
+
+        function updateNotificationBell() {
+            const badge = document.getElementById('notificationsBadge');
+            const btn = document.getElementById('notificationsBtn');
+            const panel = document.getElementById('notificationsPanel');
+            if (!badge || !btn || !panel) return;
+            const count = appNotifications.length;
+            badge.textContent = count > 9 ? '9+' : String(count);
+            badge.style.display = count ? 'inline-flex' : 'none';
+            btn.title = count ? `Notifications (${count})` : 'Notifications';
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                notificationsOpen = !notificationsOpen;
+                renderNotificationsPanel();
+            };
+            if (!notificationsOpen || !count) {
+                panel.classList.remove('open');
+                if (!count) panel.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+                return;
+            }
+            renderNotificationsPanel();
+        }
+
         function updateOnlineUsersUI() {
             const wrap = document.getElementById('onlineUsersWrap');
             const btn = document.getElementById('onlineUsersBtn');
@@ -6490,6 +6589,7 @@
         function render() {
             try {
                 renderInner();
+                updateNotificationBell();
             } catch (err) {
                 console.error('Render error:', err);
                 const mainArea = document.getElementById('mainArea');
@@ -14572,10 +14672,96 @@ ${justRegisteredPanel}
             });
         }
 
-        document.getElementById('ownerConsoleBtn').addEventListener('click', backToOwnerConsole);
+        const ownerConsoleBtn = document.getElementById('ownerConsoleBtn');
+        if (ownerConsoleBtn) ownerConsoleBtn.addEventListener('click', backToOwnerConsole);
 
         const buildInfoFooterEl = document.getElementById('buildInfoFooter');
         if (buildInfoFooterEl) buildInfoFooterEl.textContent = buildInfoText();
+
+        let deferredInstallPrompt = null;
+        let installButtonEl = null;
+        let syncButtonEl = null;
+
+        function ensureInstallButton() {
+            if (installButtonEl || !document.querySelector('.topbar')) return;
+            installButtonEl = document.createElement('button');
+            installButtonEl.type = 'button';
+            installButtonEl.className = 'pwa-install-btn';
+            installButtonEl.textContent = 'Install App';
+            installButtonEl.style.display = 'none';
+            installButtonEl.addEventListener('click', async () => {
+                if (!deferredInstallPrompt) {
+                    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
+                    alert(isIOS ? 'Use Safari → Share → Add to Home Screen to install this app on iPhone or iPad.' : 'Install is not available yet. Try again in Chrome or Edge on a supported device.');
+                    return;
+                }
+                installButtonEl.disabled = true;
+                installButtonEl.textContent = 'Installing...';
+                try {
+                    const result = await deferredInstallPrompt.prompt();
+                    if (result.outcome === 'accepted') installButtonEl.textContent = 'Installed';
+                    else {
+                        installButtonEl.textContent = 'Install App';
+                        installButtonEl.disabled = false;
+                    }
+                } catch (err) {
+                    console.warn('Install prompt failed', err);
+                    installButtonEl.textContent = 'Install App';
+                    installButtonEl.disabled = false;
+                }
+                deferredInstallPrompt = null;
+            });
+            document.querySelector('.topbar').appendChild(installButtonEl);
+        }
+
+        function ensureSyncButton() {
+            if (syncButtonEl || !document.querySelector('.topbar')) return;
+            syncButtonEl = document.createElement('button');
+            syncButtonEl.type = 'button';
+            syncButtonEl.className = 'pwa-install-btn sync-storage-btn';
+            syncButtonEl.textContent = 'Enable Sync';
+            syncButtonEl.addEventListener('click', async () => {
+                const params = new URLSearchParams(window.location.search);
+                const currentTarget = (params.get('storage') || '').trim();
+                const nextTarget = prompt(
+                    currentTarget
+                        ? 'Enter a shared storage bin ID or URL to sync this app across devices. Leave blank to switch back to local-only storage.'
+                        : 'Enter a shared storage bin ID or URL for cross-device sync. Use the same value on every device.',
+                    currentTarget
+                );
+                if (nextTarget === null) return;
+                const storageUrl = new URL(window.location.href);
+                const normalized = (nextTarget || '').trim();
+                if (normalized) storageUrl.searchParams.set('storage', normalized);
+                else storageUrl.searchParams.delete('storage');
+                window.history.replaceState({}, '', storageUrl.toString());
+                alert(normalized ? `Cross-device sync is ready. Open this link on another device using the same storage target.\n\n${storageUrl.toString()}` : 'Local-only mode restored.');
+                window.location.reload();
+            });
+            document.querySelector('.topbar').appendChild(syncButtonEl);
+        }
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+            event.preventDefault();
+            deferredInstallPrompt = event;
+            ensureInstallButton();
+            if (installButtonEl) {
+                installButtonEl.style.display = 'inline-flex';
+                installButtonEl.disabled = false;
+                installButtonEl.textContent = 'Install App';
+            }
+        });
+
+        window.addEventListener('appinstalled', () => {
+            if (installButtonEl) {
+                installButtonEl.style.display = 'none';
+                installButtonEl.textContent = 'Installed';
+            }
+            deferredInstallPrompt = null;
+        });
+
+        ensureInstallButton();
+        ensureSyncButton();
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -14584,10 +14770,8 @@ ${justRegisteredPanel}
                         if (res.ok) {
                             navigator.serviceWorker.register('./service-worker.js').catch(err => console.warn('Service worker registration failed', err));
                         }
-                        // If it's not there (e.g. previewing this file directly, or not deployed
-                        // alongside a service-worker.js yet), skip quietly instead of logging a 404.
                     })
-                    .catch(() => { /* can't reach it — skip quietly */ });
+                    .catch(() => { });
             });
         }
 
@@ -15968,7 +16152,9 @@ self.addEventListener('fetch', (e) => {
         }
 
         (async function boot() {
+            initFirebaseStorageBridge();
             await loadCloudCache();
+            startBackgroundSync();
             autoConnectGithubRepo();
 
             appMode = NavDB.get('appMode', 'landing');
@@ -16018,7 +16204,6 @@ self.addEventListener('fetch', (e) => {
             const loadingEl = document.getElementById('cloudLoading');
             if (loadingEl) loadingEl.remove();
 
-            startBackgroundSync();
             startCallPresencePoll();
             startPresenceHeartbeat();
             const bellBtn = document.getElementById('callsBellBtn');
