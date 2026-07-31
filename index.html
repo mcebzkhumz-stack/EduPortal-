@@ -4578,6 +4578,30 @@
       const ONLINE_STORE_BASE = "https://json.extendsclass.com/bin/";
       const ONLINE_STORE_POLL_MS = 60000; // conservative to stay well within the free quota
 
+      /* ---- GitHub sync: fully tokenless via a proxy (optional) ----
+                 Reads (GET) already work with no token at all against a public
+                 repo — see githubApiRequest below. WRITES normally need a real
+                 GitHub token, and this app never bakes one into the page (it's a
+                 public static file, so a baked-in token would just be handed to
+                 anyone who opens dev tools). The one way to make writes tokenless
+                 too, on every device, with nobody ever typing anything in: deploy
+                 the example Cloudflare Worker in this repo's proxy/ folder (it
+                 holds the real GitHub token server-side, as a Worker secret), then
+                 paste that worker's URL in ONE place — right here — before
+                 deploying. A worker URL isn't a secret (it's just an endpoint;
+                 the token behind it never leaves the server), so unlike a PAT
+                 it's fine to commit. Once set, autoConnectGithubRepo() below
+                 wires every device — Owner, teacher, student, brand new visitor —
+                 straight through the proxy automatically. Leave both blank to
+                 keep the previous behavior (reads still tokenless, but writes
+                 still need a PAT pasted into the Owner Console per device).
+                 GITHUB_PROXY_KEY is optional and only matters if your worker
+                 checks for one; since it ships inside a public file it's a mild
+                 deterrent against strangers hitting your worker directly, not a
+                 real secret — don't rely on it for anything sensitive. */
+      const GITHUB_PROXY_URL = ""; // e.g. "https://eduportal-proxy.yourname.workers.dev"
+      const GITHUB_PROXY_KEY = "";
+
       /* These used to be one-shot `const`s computed right here — but
                  initCloudStorageBridge() (which actually sets window.storage to the
                  Firebase/Supabase/Amplify bridge) only runs later, inside
@@ -5106,6 +5130,7 @@
           setTimeout(pollOnlineStoreUpdates, onlineStorePollDelay);
         } else if (hasGithubStore) {
           backgroundSyncStarted = true;
+          githubPollDelay = githubPollBaseIntervalMs();
           setTimeout(pollGithubUpdates, githubPollDelay);
         }
       }
@@ -7266,10 +7291,15 @@
                  doesn't fight loadCloudCache() over the same OwnerDB key).
                  The Personal Access Token is deliberately never auto-filled — it's
                  a secret and this is a public static file, so it can't safely be
-                 baked in. The Owner still pastes a token into the GitHub Registry
-                 Sync panel once; from that moment everything else — which repo,
-                 which branch, which file paths, turning full sync on — is already
-                 wired up and confined to this repository without further setup. */
+                 baked in. Without a proxy configured, the Owner still pastes a
+                 token into the GitHub Registry Sync panel once, on each device
+                 that needs to WRITE; reads work with no token anywhere (see
+                 githubApiRequest). If GITHUB_PROXY_URL above is set, though, this
+                 function also wires up the proxy automatically on every device —
+                 at that point nothing needs typing in anywhere, ever, for reads
+                 OR writes; which repo, which branch, which file paths, turning
+                 full sync on, and now the proxy too, are all already wired up and
+                 confined to this repository without further setup. */
       function detectGithubPagesRepo() {
         try {
           const host = location.hostname || "";
@@ -7288,30 +7318,46 @@
       }
       function autoConnectGithubRepo() {
         const detected = detectGithubPagesRepo();
-        if (!detected) return;
         const cfg = getGithubConfig();
+        let next = null; // stays null unless something actually needs saving, so this is a no-op on most boots
+
         // An Owner who has explicitly pointed this at a different repo
         // (unusual, but supported — e.g. mirroring data somewhere other
         // than the site's own repo) gets that choice respected forever.
-        if (cfg.manualOverride) return;
-        if (
-          cfg.owner === detected.owner &&
-          cfg.repo === detected.repo &&
-          cfg.branch &&
-          cfg.autoDetected
-        )
-          return; // already correctly wired up
-        saveGithubConfig({
-          ...cfg,
-          owner: detected.owner,
-          repo: detected.repo,
-          branch: cfg.branch || "main",
-          path: cfg.path || "eduportal-schools.json",
-          emailsPath: cfg.emailsPath || "eduportal-school-emails.json",
-          fullPath: cfg.fullPath || "eduportal-data",
-          fullSyncEnabled: cfg.fullSyncEnabled !== false,
-          autoDetected: true,
-        });
+        if (detected && !cfg.manualOverride) {
+          const alreadyWired =
+            cfg.owner === detected.owner &&
+            cfg.repo === detected.repo &&
+            cfg.branch &&
+            cfg.autoDetected;
+          if (!alreadyWired) {
+            next = {
+              ...cfg,
+              owner: detected.owner,
+              repo: detected.repo,
+              branch: cfg.branch || "main",
+              path: cfg.path || "eduportal-schools.json",
+              emailsPath: cfg.emailsPath || "eduportal-school-emails.json",
+              fullPath: cfg.fullPath || "eduportal-data",
+              fullSyncEnabled: cfg.fullSyncEnabled !== false,
+              autoDetected: true,
+            };
+          }
+        }
+
+        // Proxy auto-wiring: only if this deploy actually set GITHUB_PROXY_URL,
+        // and only if the Owner hasn't manually typed a different proxy URL
+        // into the panel themselves (proxyManualOverride, set by the save
+        // button below when what they typed doesn't match this constant).
+        if (GITHUB_PROXY_URL && !cfg.proxyManualOverride && cfg.proxyUrl !== GITHUB_PROXY_URL) {
+          next = {
+            ...(next || cfg),
+            proxyUrl: GITHUB_PROXY_URL,
+            proxyKey: GITHUB_PROXY_KEY || cfg.proxyKey || "",
+          };
+        }
+
+        if (next) saveGithubConfig(next);
       }
       function b64EncodeUtf8(str) {
         return btoa(unescape(encodeURIComponent(str)));
@@ -7361,7 +7407,7 @@
         const { url, headers } = githubContentsRequestInfo(
           `contents/${cfg.path}?ref=${encodeURIComponent(cfg.branch || "main")}`,
         );
-        const res = await fetch(url, { headers });
+        const res = await githubFetch(url, { headers });
         if (res.status === 404) return { sha: null, schools: [] };
         if (!res.ok) {
           const t = await res.text().catch(() => "");
@@ -7390,7 +7436,7 @@
           branch: cfg.branch || "main",
         };
         if (sha) body.sha = sha;
-        const res = await fetch(url, {
+        const res = await githubFetch(url, {
           method: "PUT",
           headers,
           body: JSON.stringify(body),
@@ -7431,7 +7477,7 @@
         const { url, headers } = githubContentsRequestInfo(
           `contents/${path}?ref=${encodeURIComponent(cfg.branch || "main")}`,
         );
-        const res = await fetch(url, { headers });
+        const res = await githubFetch(url, { headers });
         if (res.status === 404) return { sha: null };
         if (!res.ok) {
           const t = await res.text().catch(() => "");
@@ -7452,7 +7498,7 @@
           branch: cfg.branch || "main",
         };
         if (sha) body.sha = sha;
-        const res = await fetch(url, {
+        const res = await githubFetch(url, {
           method: "PUT",
           headers,
           body: JSON.stringify(body),
@@ -7481,7 +7527,7 @@
         const { url, headers } = githubContentsRequestInfo(
           `contents/CNAME?ref=${encodeURIComponent(cfg.branch || "main")}`,
         );
-        const res = await fetch(url, { headers });
+        const res = await githubFetch(url, { headers });
         if (res.status === 404) return { sha: null };
         if (!res.ok) {
           const t = await res.text().catch(() => "");
@@ -7501,7 +7547,7 @@
           branch: cfg.branch || "main",
         };
         if (sha) body.sha = sha;
-        const res = await fetch(url, {
+        const res = await githubFetch(url, {
           method: "PUT",
           headers,
           body: JSON.stringify(body),
@@ -7726,6 +7772,66 @@
                  api.github.com with the token attached client-side — for anyone
                  who's stood up the example Cloudflare Worker in this repo's
                  /proxy folder so the real token never sits in the browser. */
+      /* ---- Resilience: one fetch wrapper for every GitHub call ----
+                 Three things live here so a flaky connection or a brush with
+                 GitHub's rate limit can't quietly break sync:
+                 (1) retries a network drop or a transient 502/503/504 a couple
+                 of times with backoff before giving up — the same reasoning as
+                 retryCloud() elsewhere in this file, just for fetch() directly
+                 since these calls aren't routed through queueCloud().
+                 (2) tracks GitHub's X-RateLimit-* response headers in one
+                 shared place, so the moment ANY call gets told "0 requests
+                 left", every other GitHub call in the app — poll, pull, push,
+                 registry sync — skips straight to waiting instead of each one
+                 independently retrying and getting 403'd again.
+                 (3) errs conservative for anonymous reads specifically: an
+                 unauthenticated GET shares its 60/hour budget with every other
+                 visitor on the same IP, which in a school's case can mean the
+                 whole building's shared WiFi/NAT — see the poll-interval
+                 constants below. */
+      let githubRateLimitedUntil = 0; // epoch ms; 0 = not currently limited
+      function githubRateLimitWaitMs() {
+        return Math.max(0, githubRateLimitedUntil - Date.now());
+      }
+      async function githubFetch(url, opts, attempts = 3) {
+        const wait = githubRateLimitWaitMs();
+        if (wait > 0) {
+          throw new Error(
+            `GitHub API rate limit reached — resuming automatically in about ${Math.ceil(wait / 60000)} minute(s).`,
+          );
+        }
+        let lastErr;
+        for (let i = 0; i < attempts; i++) {
+          let res;
+          try {
+            res = await fetch(url, opts);
+          } catch (e) {
+            lastErr = e; // network drop, DNS failure, a misconfigured proxy's CORS rejection, etc.
+            if (i < attempts - 1) {
+              await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+              continue;
+            }
+            throw lastErr;
+          }
+          const remaining = res.headers.get("x-ratelimit-remaining");
+          const reset = res.headers.get("x-ratelimit-reset");
+          if (remaining === "0" && reset) {
+            githubRateLimitedUntil = Number(reset) * 1000 + 2000; // small buffer past the reset instant
+          }
+          if (res.status === 403 && remaining === "0") {
+            throw new Error(
+              `GitHub API rate limit reached — resuming automatically${reset ? " around " + new Date(Number(reset) * 1000).toLocaleTimeString() : " shortly"}.`,
+            );
+          }
+          if ([502, 503, 504].includes(res.status) && i < attempts - 1) {
+            lastErr = new Error(`GitHub ${res.status} (transient)`);
+            await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+            continue;
+          }
+          return res; // any other status (2xx, 404, 4xx) — caller decides how to interpret it
+        }
+        throw lastErr || new Error("GitHub request failed");
+      }
       async function githubApiRequest(method, path, body) {
         const cfg = getGithubConfig();
         let url, headers;
@@ -7757,7 +7863,7 @@
           // (POST/PATCH/PUT) still need a real token or proxy, same as before.
           if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
         }
-        const res = await fetch(url, {
+        const res = await githubFetch(url, {
           method,
           headers,
           body: body ? JSON.stringify(body) : undefined,
@@ -7954,15 +8060,35 @@
             `No backup files found under "${folder}/" on branch "${branch}". Push a full backup first.`,
           );
         let keyCount = 0;
+        const failedFiles = [];
         for (const f of files) {
-          const blobData = await githubApiRequest("GET", `git/blobs/${f.sha}`);
-          const obj = JSON.parse(b64DecodeUtf8(blobData.content || ""));
-          Object.keys(obj).forEach((key) => {
-            lsSet(key, obj[key]);
-            keyCount += 1;
-          });
+          try {
+            const blobData = await githubApiRequest(
+              "GET",
+              `git/blobs/${f.sha}`,
+            );
+            const obj = JSON.parse(b64DecodeUtf8(blobData.content || ""));
+            Object.keys(obj).forEach((key) => {
+              lsSet(key, obj[key]);
+              keyCount += 1;
+            });
+          } catch (e) {
+            // One bad file (corrupted JSON, a transient read failure that
+            // exhausted githubFetch's own retries, etc.) shouldn't take down
+            // every other school's sync with it — note it and keep going.
+            console.error("GitHub pull: skipped", f.path, e);
+            failedFiles.push(f.path);
+          }
         }
-        return { fileCount: files.length, keyCount };
+        if (failedFiles.length && failedFiles.length === files.length) {
+          // Every single file failed — that's not a partial hiccup, it's a
+          // real failure (offline, rate-limited, repo unreachable), and the
+          // caller should know rather than silently reporting "0 keys" as success.
+          throw new Error(
+            `GitHub pull failed for all ${files.length} file(s): ${failedFiles.join(", ")}`,
+          );
+        }
+        return { fileCount: files.length, keyCount, failedFiles };
       }
       /* Called from lsSet()/lsRemove() on every single storage write in the
                  app. Debounces with a max-wait cap so continuous activity doesn't
@@ -8053,9 +8179,21 @@
                  on failure instead of hammering the API. */
       let githubBackgroundSyncBusy = false; // true only while a quiet auto-pull is writing keys into cloudCache; distinct from fullRestoreBusy so this never shows the loud "Restoring from GitHub…" status line for a routine background check
       let githubPollInFlight = false;
-      const GITHUB_POLL_INTERVAL_MS = 20000;
-      const GITHUB_POLL_MAX_BACKOFF_MS = 5 * 60000;
-      let githubPollDelay = GITHUB_POLL_INTERVAL_MS;
+      const GITHUB_POLL_INTERVAL_MS = 20000; // authenticated (token or proxy) — 5000 req/hr from GitHub, plenty of headroom
+      const GITHUB_POLL_INTERVAL_ANON_MS = 90000; // anonymous reads — only 60 req/hr, shared per-IP with every other visitor on the same network (e.g. a school's shared WiFi/NAT), so this stays well under budget even with several tabs open
+      const GITHUB_POLL_MAX_BACKOFF_MS = 15 * 60000;
+      function githubPollBaseIntervalMs() {
+        const c = getGithubConfig();
+        const base =
+          c.token || c.proxyUrl
+            ? GITHUB_POLL_INTERVAL_MS
+            : GITHUB_POLL_INTERVAL_ANON_MS;
+        // Small random jitter so many devices that all booted around the same
+        // moment (e.g. a whole classroom opening the site at once) don't stay
+        // permanently lock-stepped into hitting the API in the same instant.
+        return Math.round(base * (0.85 + Math.random() * 0.3));
+      }
+      let githubPollDelay = GITHUB_POLL_INTERVAL_MS; // recalculated to the right baseline the first time the poll loop actually starts
       /* One cheap API call — just the branch tip's commit sha — so most poll
                  cycles cost almost nothing and only trigger a real download of every
                  backup file when something actually changed. */
@@ -8107,13 +8245,17 @@
                 else renderOwner();
               }
             }
-            githubPollDelay = GITHUB_POLL_INTERVAL_MS;
+            githubPollDelay = githubPollBaseIntervalMs();
           } catch (e) {
             console.error("GitHub background sync failed", e);
-            githubPollDelay = Math.min(
-              githubPollDelay * 2,
-              GITHUB_POLL_MAX_BACKOFF_MS,
-            );
+            // If this was an actual rate-limit hit, githubFetch already knows
+            // exactly when GitHub says it resets — wait for precisely that
+            // instead of guessing with exponential backoff.
+            const rateWait = githubRateLimitWaitMs();
+            githubPollDelay =
+              rateWait > 0
+                ? rateWait + 5000
+                : Math.min(githubPollDelay * 2, GITHUB_POLL_MAX_BACKOFF_MS);
           } finally {
             githubPollInFlight = false;
           }
@@ -25416,7 +25558,7 @@
                 githubCfg.owner === detected.owner &&
                 githubCfg.repo === detected.repo
               ) {
-                return `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">🔗 Auto-connected to <strong>${escapeHtml(detected.owner)}/${escapeHtml(detected.repo)}</strong> — detected from this page's own GitHub Pages address, so owner/repo/branch never need typing in. Paste a token below to finish switching sync on.</p>`;
+                return `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--rule); border-radius:6px; background:var(--accent-soft);">🔗 Auto-connected to <strong>${escapeHtml(detected.owner)}/${escapeHtml(detected.repo)}</strong> — detected from this page's own GitHub Pages address, so owner/repo/branch never need typing in. ${GITHUB_PROXY_URL ? "This deploy also has a proxy baked in, so sync is fully tokenless — nothing else to fill in, on this device or any other." : "Paste a token below to finish switching sync on (or leave it blank on devices that only need to read, not write — reads already work with no token)."}</p>`;
               }
               if (githubCfg.manualOverride) {
                 return `<p class="muted" style="font-size:12.5px; margin:0 0 10px; padding:8px 10px; border:1px solid var(--warn, var(--rule)); border-radius:6px; background:var(--accent-soft);">This is pointed at <strong>${escapeHtml(githubCfg.owner || "?")}/${escapeHtml(githubCfg.repo || "?")}</strong> instead of this page's own repo (${escapeHtml(detected.owner)}/${escapeHtml(detected.repo)}) — kept as-is because it was set deliberately. Clear the fields and save to hand control back to auto-connect.</p>`;
@@ -26682,14 +26824,20 @@
         const ghFullSaveBtn = document.getElementById("ghFullSaveBtn");
         if (ghFullSaveBtn)
           ghFullSaveBtn.onclick = () => {
+            const typedProxyUrl = document.getElementById("ghProxyUrl").value.trim();
             const cfg = {
               ...getGithubConfig(),
               fullSyncEnabled: document.getElementById("ghFullEnabled").checked,
               fullPath:
                 document.getElementById("ghFullPath").value.trim() ||
                 "eduportal-data",
-              proxyUrl: document.getElementById("ghProxyUrl").value.trim(),
+              proxyUrl: typedProxyUrl,
               proxyKey: document.getElementById("ghProxyKey").value.trim(),
+              // Only counts as a manual override if it's actually different
+              // from what this deploy would auto-apply — leaving the
+              // auto-filled value as-is (or clearing it back to blank when
+              // none is baked in) keeps auto-connect in control going forward.
+              proxyManualOverride: typedProxyUrl !== GITHUB_PROXY_URL,
             };
             saveGithubConfig(cfg);
             refreshStorageMode();
@@ -26754,10 +26902,14 @@
             ghFullRestoreBtn.disabled = true;
             ghFullRestoreBtn.textContent = "Restoring…";
             const { result, error } = await runFullGithubRestore();
+            const partial =
+              result && result.failedFiles && result.failedFiles.length;
             alert(
               error
                 ? "Restore failed: " + error
-                : `Restored ${result.keyCount} records from ${result.fileCount} files. Reloading…`,
+                : partial
+                  ? `Restored ${result.keyCount} records from ${result.fileCount - partial} of ${result.fileCount} files. ${partial} file(s) failed and were skipped: ${result.failedFiles.join(", ")}. Reloading…`
+                  : `Restored ${result.keyCount} records from ${result.fileCount} files. Reloading…`,
             );
             if (!error) location.reload();
             renderOwner();
