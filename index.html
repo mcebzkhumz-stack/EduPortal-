@@ -4446,6 +4446,24 @@
           /* ignore */
         }
       }
+      /* Companion to mergeLocalBackupsIntoCloudCache() above, for the GitHub
+                 read path. In GitHub-only mode (no Firestore/online-store/Drive
+                 configured) lsSet()'s plain-localStorage fallback writes keys
+                 un-prefixed, not under eduportal_backup_*, so this scans those
+                 directly. Only fills keys GitHub didn't already provide, so a
+                 fresher push from another device always wins over this device's
+                 own possibly-stale local copy. */
+      function mergeLocalPlainStorageIntoCloudCache() {
+        try {
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (k == null) continue;
+            if (cloudCache[k] == null) cloudCache[k] = window.localStorage.getItem(k);
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      }
       function readPersistedStorageConfig() {
         const ls = safeLocalStorage();
         if (!ls) return null;
@@ -4570,7 +4588,7 @@
                  forever, even once Firebase connected successfully right after. These
                  are now `let`s recomputed via refreshStorageMode(), called once here
                  and again immediately after every initCloudStorageBridge() call. */
-      let hasCloud, hasOnlineStore, hasDriveStore, hasEmailBackupTarget, hasRemoteStorageTarget;
+      let hasCloud, hasOnlineStore, hasDriveStore, hasEmailBackupTarget, hasGithubStore, hasRemoteStorageTarget;
       function refreshStorageMode() {
         hasCloud = !!(
           window.storage &&
@@ -4590,6 +4608,20 @@
           !hasOnlineStore &&
           !hasDriveStore &&
           !!STORAGE_TARGET_EMAIL;
+        // GitHub-as-primary-store: only kicks in when nothing stronger is
+        // configured. Deliberately NOT folded into hasRemoteStorageTarget —
+        // lsSet()/lsRemove() should still fall through to this browser's own
+        // localStorage as normal (GitHub's push side, scheduleFullGithubSync(),
+        // already fires unconditionally at the bottom of both functions
+        // regardless of this flag). This flag only controls the READ side:
+        // whether boot loads from GitHub and whether a background poll runs
+        // to pick up changes pushed by other devices. See githubReadConfigured().
+        hasGithubStore =
+          !hasCloud &&
+          !hasOnlineStore &&
+          !hasDriveStore &&
+          !hasEmailBackupTarget &&
+          githubReadConfigured();
         hasRemoteStorageTarget =
           hasOnlineStore || hasDriveStore || hasEmailBackupTarget;
       }
@@ -4929,6 +4961,24 @@
           // through to the localStorage fallback so this browser still loads
           // its own data.
         }
+        if (hasGithubStore) {
+          try {
+            // Remote wins: whatever's in the repo (which any device with a
+            // token pushes to) is what "other devices finding the data"
+            // means, so it's loaded before anything device-local.
+            await pullGithubIntoCloudCache();
+          } catch (e) {
+            // First-ever boot before anyone has pushed a backup yet throws
+            // here ("No backup files found…") — expected and harmless, this
+            // device just starts from whatever it has locally below.
+            console.error("Initial GitHub load failed", e);
+          }
+          // Fill in anything this device wrote that hasn't reached GitHub
+          // yet (e.g. mid-debounce-window edits) without overwriting what
+          // GitHub just supplied.
+          mergeLocalPlainStorageIntoCloudCache();
+          return;
+        }
         // Neither online backend is available — fall back to this browser's
         // own localStorage so the app still works (just not shared across
         // devices/browsers), and say so.
@@ -5042,14 +5092,22 @@
             setTimeout(pollOnlineStoreUpdates, onlineStorePollDelay);
         }
       }
+      let backgroundSyncStarted = false;
       function startBackgroundSync() {
+        if (backgroundSyncStarted) return; // idempotent — safe to call again (e.g. right after saving GitHub settings) without spinning up a second poll loop
         if (hasCloud) {
+          backgroundSyncStarted = true;
           const loop = () => {
             pollCloudUpdates().finally(() => setTimeout(loop, cloudSyncDelay));
           };
           setTimeout(loop, cloudSyncDelay);
-        } else if (hasOnlineStore)
+        } else if (hasOnlineStore) {
+          backgroundSyncStarted = true;
           setTimeout(pollOnlineStoreUpdates, onlineStorePollDelay);
+        } else if (hasGithubStore) {
+          backgroundSyncStarted = true;
+          setTimeout(pollGithubUpdates, githubPollDelay);
+        }
       }
 
       /* ---------------- Data layer (namespaced storage, no auth) ---------------- */
@@ -7291,10 +7349,11 @@
         }
         const url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/${path}`;
         const headers = {
-          Authorization: `Bearer ${cfg.token}`,
           Accept: "application/vnd.github+json",
           "Content-Type": "application/json",
         };
+        // Same anonymous-read allowance as githubApiRequest above.
+        if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
         return { url, headers };
       }
       async function githubGetSchoolsFile() {
@@ -7571,6 +7630,30 @@
           (c.fullPath || "eduportal-data")
         );
       }
+      /* Read-only counterpart to githubFullSyncConfigured() above — doesn't
+                 require a token, because GETs against a public GitHub repo work fine
+                 anonymously. This is what lets hasGithubStore turn on for a device
+                 that only ever knows owner/repo (auto-detected from the GitHub Pages
+                 URL) and was never handed a token: it can still read what other
+                 devices pushed, even though it can't push itself. Wrapped in
+                 try/catch since refreshStorageMode() calls this (via hasGithubStore)
+                 once very early in boot, before OwnerDB further down the file has
+                 been declared — that first call safely resolves to false here and
+                 gets recomputed correctly once boot() calls refreshStorageMode()
+                 again after everything is defined. */
+      function githubReadConfigured() {
+        try {
+          const c = getGithubConfig();
+          return !!(
+            c.owner &&
+            c.repo &&
+            c.fullSyncEnabled !== false &&
+            (c.fullPath || "eduportal-data")
+          );
+        } catch (e) {
+          return false;
+        }
+      }
       function timeAgoLabel(iso) {
         if (!iso) return "";
         const diffMs = Date.now() - new Date(iso).getTime();
@@ -7663,10 +7746,16 @@
         } else {
           url = `https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/${path}`;
           headers = {
-            Authorization: `Bearer ${cfg.token}`,
             Accept: "application/vnd.github+json",
             "Content-Type": "application/json",
           };
+          // Only attach a token if one is saved. A GET against a public repo
+          // works fine anonymously — sending "Bearer undefined" here (the old
+          // behavior) made GitHub reject even public reads with "Bad
+          // credentials", which is exactly what broke automatic cross-device
+          // reads on any device that never had a token pasted into it. Writes
+          // (POST/PATCH/PUT) still need a real token or proxy, same as before.
+          if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
         }
         const res = await fetch(url, {
           method,
@@ -7881,6 +7970,7 @@
       function scheduleFullGithubSync(reason) {
         if (!githubFullSyncConfigured()) return;
         if (fullRestoreBusy) return; // a restore is actively writing keys — don't sync those writes back out mid-restore
+        if (githubBackgroundSyncBusy) return; // same idea, for the silent auto-pull below — don't immediately re-push what we just pulled
         fullSyncPendingReason =
           reason || fullSyncPendingReason || "data change";
         const now = Date.now();
@@ -7948,6 +8038,87 @@
         fullRestoreBusy = false;
         if (appMode === "owner") renderOwner();
         return { result, error };
+      }
+
+      /* ---- GitHub as the read/sync source for OTHER devices ----
+                 Everything above this point already pushes: any change anywhere in
+                 EduPortal calls scheduleFullGithubSync() automatically. What was
+                 missing is the other direction — a device that never clicked
+                 "Restore from GitHub" had no way to find out another device (or the
+                 Owner) had pushed new data, short of someone manually restoring.
+                 This section closes that loop: pull once at boot (see loadCloudCache
+                 below) and keep polling for changes afterwards, the same way
+                 pollCloudUpdates()/pollOnlineStoreUpdates() already do for the other
+                 backend tiers — cheap enough to run continuously, and it backs off
+                 on failure instead of hammering the API. */
+      let githubBackgroundSyncBusy = false; // true only while a quiet auto-pull is writing keys into cloudCache; distinct from fullRestoreBusy so this never shows the loud "Restoring from GitHub…" status line for a routine background check
+      let githubPollInFlight = false;
+      const GITHUB_POLL_INTERVAL_MS = 20000;
+      const GITHUB_POLL_MAX_BACKOFF_MS = 5 * 60000;
+      let githubPollDelay = GITHUB_POLL_INTERVAL_MS;
+      /* One cheap API call — just the branch tip's commit sha — so most poll
+                 cycles cost almost nothing and only trigger a real download of every
+                 backup file when something actually changed. */
+      async function githubGetBranchSha() {
+        const cfg = getGithubConfig();
+        const branch = cfg.branch || "main";
+        const ref = await githubApiRequest(
+          "GET",
+          `git/ref/${encodeURIComponent("heads/" + branch)}`,
+        );
+        return ref && ref.object && ref.object.sha;
+      }
+      /* Pulls every backup file into cloudCache without triggering a push back
+                 out (see the githubBackgroundSyncBusy guard added to
+                 scheduleFullGithubSync above), and remembers the commit sha it just
+                 loaded so the next poll can skip re-downloading unchanged data. */
+      async function pullGithubIntoCloudCache() {
+        githubBackgroundSyncBusy = true;
+        try {
+          const result = await githubPullFullBackupFolder();
+          try {
+            const sha = await githubGetBranchSha();
+            if (sha)
+              saveGithubConfig({ ...getGithubConfig(), lastKnownRemoteSha: sha });
+          } catch (e) {
+            /* best-effort — a stale sha just means the next poll re-checks a bit sooner */
+          }
+          return result;
+        } finally {
+          githubBackgroundSyncBusy = false;
+        }
+      }
+      async function pollGithubUpdates() {
+        if (
+          hasGithubStore &&
+          !githubPollInFlight &&
+          !fullSyncBusy &&
+          !fullRestoreBusy
+        ) {
+          githubPollInFlight = true;
+          try {
+            const sha = await githubGetBranchSha();
+            if (sha && sha !== getGithubConfig().lastKnownRemoteSha) {
+              await pullGithubIntoCloudCache();
+              // Same "don't yank the form out from under an active edit" rule
+              // the other backends' pollers already follow.
+              if (!isEditingSomething()) {
+                if (appMode === "school") render();
+                else renderOwner();
+              }
+            }
+            githubPollDelay = GITHUB_POLL_INTERVAL_MS;
+          } catch (e) {
+            console.error("GitHub background sync failed", e);
+            githubPollDelay = Math.min(
+              githubPollDelay * 2,
+              GITHUB_POLL_MAX_BACKOFF_MS,
+            );
+          } finally {
+            githubPollInFlight = false;
+          }
+        }
+        if (hasGithubStore) setTimeout(pollGithubUpdates, githubPollDelay);
       }
 
       /* Pulls the GitHub file and "recognizes" any school name/email in it
@@ -26236,6 +26407,8 @@
               autoDetected: isAutoRepo,
             };
             saveGithubConfig(cfg);
+            refreshStorageMode();
+            startBackgroundSync(); // no-op if a poll loop is already running; starts one immediately if this save is what first made hasGithubStore true
             alert("GitHub sync settings saved.");
             renderOwner();
           };
@@ -26519,10 +26692,12 @@
               proxyKey: document.getElementById("ghProxyKey").value.trim(),
             };
             saveGithubConfig(cfg);
+            refreshStorageMode();
+            startBackgroundSync();
             alert(
               "Full data sync settings saved." +
                 (cfg.fullSyncEnabled
-                  ? " It will now push automatically after every change."
+                  ? " It will now push automatically after every change, and this device (and any other device that loads this page) will automatically pull in changes made elsewhere too."
                   : ""),
             );
             renderOwner();
@@ -29987,10 +30162,10 @@
 
       (async function boot() {
         initCloudStorageBridge();
+        autoConnectGithubRepo();
         refreshStorageMode();
         await loadCloudCache();
         startBackgroundSync();
-        autoConnectGithubRepo();
 
         appMode = NavDB.get("appMode", "landing");
         currentSchoolId = NavDB.get("activeSchoolId", "demo");
