@@ -1,19 +1,19 @@
-# @babel/helper-validator-identifier
+# @babel/plugin-syntax-async-generators
 
-> Validate identifier/keywords name
+> Allow parsing of async generator functions
 
-See our website [@babel/helper-validator-identifier](https://babeljs.io/docs/babel-helper-validator-identifier) for more information.
+See our website [@babel/plugin-syntax-async-generators](https://babeljs.io/docs/en/next/babel-plugin-syntax-async-generators.html) for more information.
 
 ## Install
 
 Using npm:
 
 ```sh
-npm install --save @babel/helper-validator-identifier
+npm install --save-dev @babel/plugin-syntax-async-generators
 ```
 
 or using yarn:
 
 ```sh
-yarn add @babel/helper-validator-identifier
+yarn add @babel/plugin-syntax-async-generators --dev
 ```

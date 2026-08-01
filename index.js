@@ -3,55 +3,20 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-Object.defineProperty(exports, "isIdentifierChar", {
-  enumerable: true,
-  get: function () {
-    return _identifier.isIdentifierChar;
-  }
-});
-Object.defineProperty(exports, "isIdentifierName", {
-  enumerable: true,
-  get: function () {
-    return _identifier.isIdentifierName;
-  }
-});
-Object.defineProperty(exports, "isIdentifierStart", {
-  enumerable: true,
-  get: function () {
-    return _identifier.isIdentifierStart;
-  }
-});
-Object.defineProperty(exports, "isKeyword", {
-  enumerable: true,
-  get: function () {
-    return _keyword.isKeyword;
-  }
-});
-Object.defineProperty(exports, "isReservedWord", {
-  enumerable: true,
-  get: function () {
-    return _keyword.isReservedWord;
-  }
-});
-Object.defineProperty(exports, "isStrictBindOnlyReservedWord", {
-  enumerable: true,
-  get: function () {
-    return _keyword.isStrictBindOnlyReservedWord;
-  }
-});
-Object.defineProperty(exports, "isStrictBindReservedWord", {
-  enumerable: true,
-  get: function () {
-    return _keyword.isStrictBindReservedWord;
-  }
-});
-Object.defineProperty(exports, "isStrictReservedWord", {
-  enumerable: true,
-  get: function () {
-    return _keyword.isStrictReservedWord;
-  }
-});
-var _identifier = require("./identifier.js");
-var _keyword = require("./keyword.js");
+exports.default = void 0;
 
-//# sourceMappingURL=index.js.map
+var _helperPluginUtils = require("@babel/helper-plugin-utils");
+
+var _default = (0, _helperPluginUtils.declare)(api => {
+  api.assertVersion(7);
+  return {
+    name: "syntax-async-generators",
+
+    manipulateOptions(opts, parserOpts) {
+      parserOpts.plugins.push("asyncGenerators");
+    }
+
+  };
+});
+
+exports.default = _default;
