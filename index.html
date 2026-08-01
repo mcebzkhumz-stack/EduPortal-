@@ -3213,20 +3213,6 @@
       };
       const FIREBASE_COLLECTION = "eduportal_kv";
 
-      /* ==== Supabase configuration (optional) ====
-                 SETUP (one-time):
-                   1. Create a Supabase project at https://app.supabase.com
-                   2. Create a table named `eduportal_kv` with the schema provided in sql/supabase_schema.sql
-                   3. Add RLS policies from sql/supabase_rls.sql (adjust claims if your auth setup differs)
-                   4. Paste your project's anon public key and URL into SUPABASE_CONFIG below.
-                 NOTE: Never embed the service_role key in client-side code. Use anon key + RLS for client access
-               */
-      const SUPABASE_CONFIG = {
-        // Example placeholders — replace with your project's values
-        url: "https://your-project-id.supabase.co",
-        anonKey: "public-anon-key-goes-here",
-      };
-      const SUPABASE_TABLE = "eduportal_kv";
       /* ==== Google reCAPTCHA (spam/validity protection on public forms) ====
                  SETUP (one-time, free):
                    1. Go to https://www.google.com/recaptcha/admin/create
