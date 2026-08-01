@@ -1,88 +1,217 @@
-"use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+var picocolors = require('picocolors');
+var jsTokens = require('js-tokens');
+var helperValidatorIdentifier = require('@babel/helper-validator-identifier');
+
+function isColorSupported() {
+  return (typeof process === "object" && (process.env.FORCE_COLOR === "0" || process.env.FORCE_COLOR === "false") ? false : picocolors.isColorSupported
+  );
+}
+const compose = (f, g) => v => f(g(v));
+function buildDefs(colors) {
+  return {
+    keyword: colors.cyan,
+    capitalized: colors.yellow,
+    jsxIdentifier: colors.yellow,
+    punctuator: colors.yellow,
+    number: colors.magenta,
+    string: colors.green,
+    regex: colors.magenta,
+    comment: colors.gray,
+    invalid: compose(compose(colors.white, colors.bgRed), colors.bold),
+    gutter: colors.gray,
+    marker: compose(colors.red, colors.bold),
+    message: compose(colors.red, colors.bold),
+    reset: colors.reset
+  };
+}
+const defsOn = buildDefs(picocolors.createColors(true));
+const defsOff = buildDefs(picocolors.createColors(false));
+function getDefs(enabled) {
+  return enabled ? defsOn : defsOff;
+}
+
+const sometimesKeywords = new Set(["as", "async", "from", "get", "of", "set"]);
+const NEWLINE$1 = /\r\n|[\n\r\u2028\u2029]/;
+const BRACKET = /^[()[\]{}]$/;
+let tokenize;
+const JSX_TAG = /^[a-z][\w-]*$/i;
+const getTokenType = function (token, offset, text) {
+  if (token.type === "name") {
+    const tokenValue = token.value;
+    if (helperValidatorIdentifier.isKeyword(tokenValue) || helperValidatorIdentifier.isStrictReservedWord(tokenValue, true) || sometimesKeywords.has(tokenValue)) {
+      return "keyword";
     }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __exportStar = (this && this.__exportStar) || function(m, exports) {
-    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
+    if (JSX_TAG.test(tokenValue) && (text[offset - 1] === "<" || text.slice(offset - 2, offset) === "</")) {
+      return "jsxIdentifier";
+    }
+    const firstChar = String.fromCodePoint(tokenValue.codePointAt(0));
+    if (firstChar !== firstChar.toLowerCase()) {
+      return "capitalized";
+    }
+  }
+  if (token.type === "punctuator" && BRACKET.test(token.value)) {
+    return "bracket";
+  }
+  if (token.type === "invalid" && (token.value === "@" || token.value === "#")) {
+    return "punctuator";
+  }
+  return token.type;
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.GoogleAuth = exports.auth = exports.GDCH_SERVICE_ACCOUNT_TYPE = exports.GdchClient = exports.PassThroughClient = exports.ExternalAccountAuthorizedUserClient = exports.EXTERNAL_ACCOUNT_AUTHORIZED_USER_TYPE = exports.ExecutableError = exports.PluggableAuthClient = exports.DownscopedClient = exports.BaseExternalAccountClient = exports.ExternalAccountClient = exports.IdentityPoolClient = exports.AwsRequestSigner = exports.AwsClient = exports.UserRefreshClient = exports.LoginTicket = exports.ClientAuthentication = exports.OAuth2Client = exports.CodeChallengeMethod = exports.Impersonated = exports.JWT = exports.JWTAccess = exports.IdTokenClient = exports.IAMAuth = exports.GCPEnv = exports.Compute = exports.DEFAULT_UNIVERSE = exports.AuthClient = exports.gaxios = exports.gcpMetadata = void 0;
-// Copyright 2017 Google LLC
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-const googleauth_1 = require("./auth/googleauth");
-Object.defineProperty(exports, "GoogleAuth", { enumerable: true, get: function () { return googleauth_1.GoogleAuth; } });
-// Export common deps to ensure types/instances are the exact match. Useful
-// for consistently configuring the library across versions.
-exports.gcpMetadata = require("gcp-metadata");
-exports.gaxios = require("gaxios");
-var authclient_1 = require("./auth/authclient");
-Object.defineProperty(exports, "AuthClient", { enumerable: true, get: function () { return authclient_1.AuthClient; } });
-Object.defineProperty(exports, "DEFAULT_UNIVERSE", { enumerable: true, get: function () { return authclient_1.DEFAULT_UNIVERSE; } });
-var computeclient_1 = require("./auth/computeclient");
-Object.defineProperty(exports, "Compute", { enumerable: true, get: function () { return computeclient_1.Compute; } });
-var envDetect_1 = require("./auth/envDetect");
-Object.defineProperty(exports, "GCPEnv", { enumerable: true, get: function () { return envDetect_1.GCPEnv; } });
-var iam_1 = require("./auth/iam");
-Object.defineProperty(exports, "IAMAuth", { enumerable: true, get: function () { return iam_1.IAMAuth; } });
-var idtokenclient_1 = require("./auth/idtokenclient");
-Object.defineProperty(exports, "IdTokenClient", { enumerable: true, get: function () { return idtokenclient_1.IdTokenClient; } });
-var jwtaccess_1 = require("./auth/jwtaccess");
-Object.defineProperty(exports, "JWTAccess", { enumerable: true, get: function () { return jwtaccess_1.JWTAccess; } });
-var jwtclient_1 = require("./auth/jwtclient");
-Object.defineProperty(exports, "JWT", { enumerable: true, get: function () { return jwtclient_1.JWT; } });
-var impersonated_1 = require("./auth/impersonated");
-Object.defineProperty(exports, "Impersonated", { enumerable: true, get: function () { return impersonated_1.Impersonated; } });
-var oauth2client_1 = require("./auth/oauth2client");
-Object.defineProperty(exports, "CodeChallengeMethod", { enumerable: true, get: function () { return oauth2client_1.CodeChallengeMethod; } });
-Object.defineProperty(exports, "OAuth2Client", { enumerable: true, get: function () { return oauth2client_1.OAuth2Client; } });
-Object.defineProperty(exports, "ClientAuthentication", { enumerable: true, get: function () { return oauth2client_1.ClientAuthentication; } });
-var loginticket_1 = require("./auth/loginticket");
-Object.defineProperty(exports, "LoginTicket", { enumerable: true, get: function () { return loginticket_1.LoginTicket; } });
-var refreshclient_1 = require("./auth/refreshclient");
-Object.defineProperty(exports, "UserRefreshClient", { enumerable: true, get: function () { return refreshclient_1.UserRefreshClient; } });
-var awsclient_1 = require("./auth/awsclient");
-Object.defineProperty(exports, "AwsClient", { enumerable: true, get: function () { return awsclient_1.AwsClient; } });
-var awsrequestsigner_1 = require("./auth/awsrequestsigner");
-Object.defineProperty(exports, "AwsRequestSigner", { enumerable: true, get: function () { return awsrequestsigner_1.AwsRequestSigner; } });
-var identitypoolclient_1 = require("./auth/identitypoolclient");
-Object.defineProperty(exports, "IdentityPoolClient", { enumerable: true, get: function () { return identitypoolclient_1.IdentityPoolClient; } });
-var externalclient_1 = require("./auth/externalclient");
-Object.defineProperty(exports, "ExternalAccountClient", { enumerable: true, get: function () { return externalclient_1.ExternalAccountClient; } });
-var baseexternalclient_1 = require("./auth/baseexternalclient");
-Object.defineProperty(exports, "BaseExternalAccountClient", { enumerable: true, get: function () { return baseexternalclient_1.BaseExternalAccountClient; } });
-var downscopedclient_1 = require("./auth/downscopedclient");
-Object.defineProperty(exports, "DownscopedClient", { enumerable: true, get: function () { return downscopedclient_1.DownscopedClient; } });
-var pluggable_auth_client_1 = require("./auth/pluggable-auth-client");
-Object.defineProperty(exports, "PluggableAuthClient", { enumerable: true, get: function () { return pluggable_auth_client_1.PluggableAuthClient; } });
-Object.defineProperty(exports, "ExecutableError", { enumerable: true, get: function () { return pluggable_auth_client_1.ExecutableError; } });
-var externalAccountAuthorizedUserClient_1 = require("./auth/externalAccountAuthorizedUserClient");
-Object.defineProperty(exports, "EXTERNAL_ACCOUNT_AUTHORIZED_USER_TYPE", { enumerable: true, get: function () { return externalAccountAuthorizedUserClient_1.EXTERNAL_ACCOUNT_AUTHORIZED_USER_TYPE; } });
-Object.defineProperty(exports, "ExternalAccountAuthorizedUserClient", { enumerable: true, get: function () { return externalAccountAuthorizedUserClient_1.ExternalAccountAuthorizedUserClient; } });
-var passthrough_1 = require("./auth/passthrough");
-Object.defineProperty(exports, "PassThroughClient", { enumerable: true, get: function () { return passthrough_1.PassThroughClient; } });
-var gdchclient_1 = require("./auth/gdchclient");
-Object.defineProperty(exports, "GdchClient", { enumerable: true, get: function () { return gdchclient_1.GdchClient; } });
-Object.defineProperty(exports, "GDCH_SERVICE_ACCOUNT_TYPE", { enumerable: true, get: function () { return gdchclient_1.GDCH_SERVICE_ACCOUNT_TYPE; } });
-__exportStar(require("./gtoken/googleToken"), exports);
-const auth = new googleauth_1.GoogleAuth();
-exports.auth = auth;
+tokenize = function* (text) {
+  let match;
+  while (match = jsTokens.default.exec(text)) {
+    const token = jsTokens.matchToToken(match);
+    yield {
+      type: getTokenType(token, match.index, text),
+      value: token.value
+    };
+  }
+};
+function highlight(text) {
+  if (text === "") return "";
+  const defs = getDefs(true);
+  let highlighted = "";
+  for (const {
+    type,
+    value
+  } of tokenize(text)) {
+    if (type in defs) {
+      highlighted += value.split(NEWLINE$1).map(str => defs[type](str)).join("\n");
+    } else {
+      highlighted += value;
+    }
+  }
+  return highlighted;
+}
+
+let deprecationWarningShown = false;
+const NEWLINE = /\r\n|[\n\r\u2028\u2029]/;
+function getMarkerLines(loc, source, opts, startLineBaseZero) {
+  const startLoc = Object.assign({
+    column: 0,
+    line: -1
+  }, loc.start);
+  const endLoc = Object.assign({}, startLoc, loc.end);
+  const {
+    linesAbove = 2,
+    linesBelow = 3
+  } = opts || {};
+  const startLine = startLoc.line - startLineBaseZero;
+  const startColumn = startLoc.column;
+  const endLine = endLoc.line - startLineBaseZero;
+  const endColumn = endLoc.column;
+  let start = Math.max(startLine - (linesAbove + 1), 0);
+  let end = Math.min(source.length, endLine + linesBelow);
+  if (startLine === -1) {
+    start = 0;
+  }
+  if (endLine === -1) {
+    end = source.length;
+  }
+  const lineDiff = endLine - startLine;
+  const markerLines = {};
+  if (lineDiff) {
+    for (let i = 0; i <= lineDiff; i++) {
+      const lineNumber = i + startLine;
+      if (!startColumn) {
+        markerLines[lineNumber] = true;
+      } else if (i === 0) {
+        const sourceLength = source[lineNumber - 1].length;
+        markerLines[lineNumber] = [startColumn, sourceLength - startColumn + 1];
+      } else if (i === lineDiff) {
+        markerLines[lineNumber] = [0, endColumn];
+      } else {
+        const sourceLength = source[lineNumber - i].length;
+        markerLines[lineNumber] = [0, sourceLength];
+      }
+    }
+  } else {
+    if (startColumn === endColumn) {
+      if (startColumn) {
+        markerLines[startLine] = [startColumn, 0];
+      } else {
+        markerLines[startLine] = true;
+      }
+    } else {
+      markerLines[startLine] = [startColumn, endColumn - startColumn];
+    }
+  }
+  return {
+    start,
+    end,
+    markerLines
+  };
+}
+function codeFrameColumns(rawLines, loc, opts = {}) {
+  const shouldHighlight = opts.forceColor || isColorSupported() && opts.highlightCode;
+  const startLineBaseZero = (opts.startLine || 1) - 1;
+  const defs = getDefs(shouldHighlight);
+  const lines = rawLines.split(NEWLINE);
+  const {
+    start,
+    end,
+    markerLines
+  } = getMarkerLines(loc, lines, opts, startLineBaseZero);
+  const hasColumns = loc.start && typeof loc.start.column === "number";
+  const numberMaxWidth = String(end + startLineBaseZero).length;
+  const highlightedLines = shouldHighlight ? highlight(rawLines) : rawLines;
+  let frame = highlightedLines.split(NEWLINE, end).slice(start, end).map((line, index) => {
+    const number = start + 1 + index;
+    const paddedNumber = ` ${number + startLineBaseZero}`.slice(-numberMaxWidth);
+    const gutter = ` ${paddedNumber} |`;
+    const hasMarker = markerLines[number];
+    const lastMarkerLine = !markerLines[number + 1];
+    if (hasMarker) {
+      let markerLine = "";
+      if (Array.isArray(hasMarker)) {
+        const markerSpacing = line.slice(0, Math.max(hasMarker[0] - 1, 0)).replace(/[^\t]/g, " ");
+        const numberOfMarkers = hasMarker[1] || 1;
+        markerLine = ["\n ", defs.gutter(gutter.replace(/\d/g, " ")), " ", markerSpacing, defs.marker("^").repeat(numberOfMarkers)].join("");
+        if (lastMarkerLine && opts.message) {
+          markerLine += " " + defs.message(opts.message);
+        }
+      }
+      return [defs.marker(">"), defs.gutter(gutter), line.length > 0 ? ` ${line}` : "", markerLine].join("");
+    } else {
+      return ` ${defs.gutter(gutter)}${line.length > 0 ? ` ${line}` : ""}`;
+    }
+  }).join("\n");
+  if (opts.message && !hasColumns) {
+    frame = `${" ".repeat(numberMaxWidth + 1)}${opts.message}\n${frame}`;
+  }
+  if (shouldHighlight) {
+    return defs.reset(frame);
+  } else {
+    return frame;
+  }
+}
+function index (rawLines, lineNumber, colNumber, opts = {}) {
+  if (!deprecationWarningShown) {
+    deprecationWarningShown = true;
+    const message = "Passing lineNumber and colNumber is deprecated to @babel/code-frame. Please use `codeFrameColumns`.";
+    if (process.emitWarning) {
+      process.emitWarning(message, "DeprecationWarning");
+    } else {
+      const deprecationError = new Error(message);
+      deprecationError.name = "DeprecationWarning";
+      console.warn(new Error(message));
+    }
+  }
+  colNumber = Math.max(colNumber, 0);
+  const location = {
+    start: {
+      column: colNumber,
+      line: lineNumber
+    }
+  };
+  return codeFrameColumns(rawLines, location, opts);
+}
+
+exports.codeFrameColumns = codeFrameColumns;
+exports.default = index;
+exports.highlight = highlight;
 //# sourceMappingURL=index.js.map
