@@ -1,59 +1,88 @@
-const http = require('http');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
-const root = __dirname;
 const port = process.env.PORT || 8000;
-const mimeTypes = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'application/javascript; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8',
-  '.map': 'application/json; charset=utf-8'
-};
+const root = __dirname;
+const syncStorePath = path.join(__dirname, '.sync-store.json');
 
-const server = http.createServer((req, res) => {
-  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-  const cleanPath = urlPath === '/' ? '/' : urlPath.replace(/\/+$/, '');
+function loadSyncRecords() {
+  try {
+    const raw = fs.readFileSync(syncStorePath, 'utf8');
+    return raw ? JSON.parse(raw) : [];
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return [];
+    }
+    console.error('Failed to load sync store:', error);
+    return [];
+  }
+}
 
-  let filePath = path.join(root, cleanPath === '/' ? 'index.html' : cleanPath);
-  if (!path.extname(filePath)) {
-    filePath = path.join(filePath, 'index.html');
+function saveSyncRecords(records) {
+  try {
+    fs.writeFileSync(syncStorePath, JSON.stringify(records, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Failed to save sync store:', error);
+  }
+}
+
+function buildSyncRecord(payload) {
+  const recordId = payload.recordId || `sync-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return {
+    id: recordId,
+    deviceId: payload.deviceId || 'unknown-device',
+    source: payload.source || 'browser',
+    timestamp: payload.timestamp || Date.now(),
+    syncedAt: new Date().toISOString(),
+    payload
+  };
+}
+
+const app = express();
+app.use(express.json({ limit: '10mb' }));
+
+app.post('/api/sync/sync', (req, res) => {
+  const syncPayload = req.body;
+  if (!syncPayload || typeof syncPayload !== 'object') {
+    return res.status(400).json({ success: false, message: 'Invalid sync payload.' });
   }
 
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      if (cleanPath === '/public-site.html' || cleanPath === '/public-site') {
-        const fallback = path.join(root, 'public-site.html');
-        fs.readFile(fallback, (fallbackErr, fallbackData) => {
-          if (fallbackErr) {
-            res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-            res.end('Not found');
-            return;
-          }
-          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(fallbackData);
-        });
-        return;
-      }
-      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-      res.end('Not found');
-      return;
-    }
+  const record = buildSyncRecord(syncPayload);
+  const allRecords = loadSyncRecords();
+  allRecords.push(record);
+  saveSyncRecords(allRecords);
 
-    const ext = path.extname(filePath).toLowerCase();
-    const type = mimeTypes[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': type });
-    res.end(data);
+  return res.json({
+    success: true,
+    message: 'Data synchronized successfully.',
+    recordId: record.id,
+    syncedAt: record.syncedAt
   });
 });
 
-server.listen(port, () => {
+app.get('/api/sync/records', (req, res) => {
+  const allRecords = loadSyncRecords();
+  const since = Number(req.query.since) || 0;
+  const filteredRecords = since > 0 ? allRecords.filter((record) => record.timestamp > since) : allRecords;
+  return res.json(filteredRecords);
+});
+
+app.get('/api/sync/status', (req, res) => {
+  const allRecords = loadSyncRecords();
+  return res.json({
+    success: true,
+    message: 'Sync server is healthy.',
+    recordCount: allRecords.length,
+    lastUpdated: new Date().toISOString()
+  });
+});
+
+app.use(express.static(root, { dotfiles: 'ignore' }));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(root, 'index.html'));
+});
+
+app.listen(port, () => {
   console.log(`EduPortal server running at http://localhost:${port}`);
 });

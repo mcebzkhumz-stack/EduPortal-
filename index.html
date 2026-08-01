@@ -4200,15 +4200,86 @@
         }
       }
 
+      /* ---------------- Multi-backend failover ----------------
+                 Originally this only ever initialized ONE backend (whichever
+                 activeBackend() picked) and left the other two configs unused.
+                 Now, if more than one backend has real credentials filled in,
+                 every configured one is initialized and wrapped in a failover
+                 layer: each operation tries them in priority order (Firestore →
+                 Supabase → Amplify) and only moves to the next one if the
+                 current one throws.
+
+                 IMPORTANT CONSISTENCY CAVEAT: this is failover, not
+                 replication. If Firestore is down and a save lands on Supabase
+                 instead, that value now lives in Supabase — it will keep being
+                 served from there (get() tries Firestore first, but falls
+                 through to Supabase on a miss the same way it does on an
+                 error) until something re-saves it, but data that was NEVER
+                 read back through the failover path (e.g. another device that
+                 only ever talks to Firestore, or a stale poll cache) can miss
+                 it. This is meant for "keep the app usable during a backend
+                 outage," not for keeping all three backends in sync as
+                 mirrors of each other. */
+      function buildFailoverStorage(apis) {
+        if (apis.length === 1) return apis[0].api;
+        async function tryInOrder(methodName, args) {
+          let lastErr;
+          for (const { name, api } of apis) {
+            try {
+              return await api[methodName](...args);
+            } catch (e) {
+              lastErr = e;
+              console.error(
+                `EduPortal: ${methodName}() failed on ${name}, trying next backend`,
+                e,
+              );
+            }
+          }
+          throw lastErr;
+        }
+        return {
+          get: (...args) => tryInOrder("get", args),
+          set: (...args) => tryInOrder("set", args),
+          delete: (...args) => tryInOrder("delete", args),
+          list: (...args) => tryInOrder("list", args),
+        };
+      }
       function initCloudStorageBridge() {
         if (window.storage) return; // already inside Claude.ai — leave it alone
-        const backend = activeBackend();
-        if (!backend) {
+        const candidates = [
+          { name: "firestore", ready: firebaseIsConfigured, init: initFirestoreBridge },
+          { name: "supabase", ready: supabaseIsConfigured, init: initSupabaseBridge },
+          { name: "amplify", ready: amplifyIsConfigured, init: initAmplifyBridge },
+        ];
+        // STORAGE_BACKEND !== 'auto' means the file was explicitly pinned to
+        // one backend (e.g. while migrating) — honor that and skip failover
+        // entirely, exactly as before.
+        if (STORAGE_BACKEND !== "auto") {
+          initCloudStorageBridgeSingle(STORAGE_BACKEND);
+          return;
+        }
+        const apis = [];
+        for (const c of candidates) {
+          if (!c.ready()) continue;
+          window.storage = undefined; // each builder assigns window.storage as a side effect
+          if (c.init()) apis.push({ name: c.name, api: window.storage });
+        }
+        window.storage = undefined;
+        if (!apis.length) {
           console.warn(
             "EduPortal: no cloud backend configured yet — fill in FIREBASE_CONFIG, SUPABASE_CONFIG, or AMPLIFY_CONFIG. Falling back to the online-store / localStorage tiers below.",
           );
           return;
         }
+        window.storage = buildFailoverStorage(apis);
+        if (apis.length > 1) {
+          console.log(
+            "EduPortal: failover enabled across",
+            apis.map((a) => a.name).join(" → "),
+          );
+        }
+      }
+      function initCloudStorageBridgeSingle(backend) {
         if (backend === "firestore") initFirestoreBridge();
         else if (backend === "supabase") initSupabaseBridge();
         else if (backend === "amplify") initAmplifyBridge();
@@ -4904,12 +4975,36 @@
         onlineStorePushTimer = setTimeout(() => {
           onlineStorePushTimer = null;
           retryCloud(onlineStoreSaveNow).catch((e) => {
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeSaveFailure(e));
             console.error("Online store save failed", e);
           });
         }, 1200);
       }
 
+      function describeLoadFailure(e) {
+        const msg = e && (e.message || String(e));
+        return (
+          "Couldn't load existing data from cloud storage" +
+          (msg ? " (" + msg + ")" : "") +
+          ". You may be seeing stale or incomplete data — try reloading, or check your connection."
+        );
+      }
+      function describeSaveFailure(e, isQuota) {
+        if (isQuota) {
+          return "This device's local storage is full, so the last change (likely a file attachment) was NOT saved and will be lost if you leave the app. Try a smaller file, remove old attachments, or set up GitHub/online-store sync in the Owner Console for reliable storage.";
+        }
+        const msg = e && (e.message || String(e));
+        const isTooLarge =
+          msg && /too large|5 ?mb|size limit|exceed/i.test(msg);
+        if (isTooLarge) {
+          return "The last change couldn't be saved because it's too large for cloud storage (likely a big photo/attachment) — try a smaller file. The change will be lost if you leave the app without retrying.";
+        }
+        return (
+          "The last change couldn't be saved" +
+          (msg ? " (" + msg + ")" : "") +
+          " and will be lost if you leave the app. Try again, or check your connection / storage space."
+        );
+      }
       function lsGet(key) {
         return Object.prototype.hasOwnProperty.call(cloudCache, key)
           ? cloudCache[key]
@@ -4922,7 +5017,7 @@
         cloudCache[key] = val;
         if (hasCloud) {
           queueCloud(() => window.storage.set(key, val, true)).catch((e) => {
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeSaveFailure(e));
             console.error("Cloud save failed for", key, e);
           });
           // Also write a local backup synchronously so user uploads aren't
@@ -4935,7 +5030,7 @@
           }
         } else if (hasRemoteStorageTarget) {
           queueCloud(() => saveRemoteStoragePayload()).catch((e) => {
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeSaveFailure(e));
             console.error("Remote storage save failed", e);
           });
         } else {
@@ -4956,11 +5051,7 @@
               (e.name === "QuotaExceededError" ||
                 e.code === 22 ||
                 e.code === 1014);
-            showCloudSaveWarning(
-              isQuota
-                ? "This device's local storage is full, so the last change (likely a file attachment) was NOT saved and will be lost if you leave the app. Try a smaller file, remove old attachments, or set up GitHub/online-store sync in the Owner Console for reliable storage."
-                : "The last change couldn't be saved to this device and will be lost if you leave the app. Please try again.",
-            );
+            showCloudSaveWarning(describeSaveFailure(e, isQuota));
           }
         }
         scheduleFullGithubSync("updated " + key);
@@ -4970,7 +5061,7 @@
         delete cloudCache[key];
         if (hasCloud) {
           queueCloud(() => window.storage.delete(key, true)).catch((e) => {
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeSaveFailure(e));
             console.error("Cloud delete failed for", key, e);
           });
           try {
@@ -4981,7 +5072,7 @@
           }
         } else if (hasRemoteStorageTarget) {
           queueCloud(() => saveRemoteStoragePayload()).catch((e) => {
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeSaveFailure(e));
             console.error("Remote storage delete failed", e);
           });
         } else {
@@ -5070,7 +5161,7 @@
             }
           } catch (e) {
             console.error("Initial cloud load failed", e);
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeLoadFailure(e));
           }
           return;
         }
@@ -5081,7 +5172,7 @@
               Object.assign(cloudCache, data);
           } catch (e) {
             console.error("Initial online store load failed", e);
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeLoadFailure(e));
           }
           return;
         }
@@ -5095,7 +5186,7 @@
             }
           } catch (e) {
             console.error("Initial Drive storage load failed", e);
-            showCloudSaveWarning();
+            showCloudSaveWarning(describeLoadFailure(e));
           }
           mergeLocalBackupsIntoCloudCache();
           return;
@@ -9449,6 +9540,25 @@
         "c8cd3c6427301eaf6665bccacd65ddb614527acc843a15463e3faba57124c351", // sha256 of owner@example.com (placeholder for local testing)
         "258d8dc916db8cea2cafb6c3cd0cb0246efe061421dbd83ec3a350428cabda4f", // sha256 of admin@example.com (placeholder for local testing)
       ];
+      /* ---- Inbuilt initial Owner password ----
+                 Seeded automatically the first time this app boots with no
+                 Owner password configured yet — functionally identical to
+                 running the browser-console command by hand
+                 (OwnerDB.set("ownerPasswordHash", hash)), just baked into the
+                 file so that manual step isn't needed. Written into OwnerDB
+                 (shared cloud storage), so once seeded it's the SAME password
+                 everywhere this app is opened/deployed — it does NOT reset
+                 per device — and from then on it only ever changes via the
+                 in-app "Change Owner Password" flow (seedOwnerPasswordIfNeeded
+                 is a no-op once a hash already exists). Only the SHA-256 hash
+                 lives in source; the plaintext password is never stored. */
+      const OWNER_INITIAL_PASSWORD_HASH =
+        "c7259d89f5f586509f9c8c66c1eb6a0ae0476ba2a14d1fbe060256c320c48ceb";
+      function seedOwnerPasswordIfNeeded() {
+        if (!OwnerDB.get("ownerPasswordHash", null)) {
+          OwnerDB.set("ownerPasswordHash", OWNER_INITIAL_PASSWORD_HASH);
+        }
+      }
       /* ---- Dominion: succession ----
                  A second, editable allow-list living in shared cloud storage (not
                  hard-coded in source) so the Owner can grant — and later revoke —
@@ -9473,10 +9583,22 @@
         const overlay = document.getElementById("ownerPwModalOverlay");
         overlay.style.display = "flex";
         overlay.className = "modal-overlay";
+        const showGoogle = googleSignInAvailable();
         overlay.innerHTML = `
             <div class="login-card" style="max-width:340px;">
               <h3 style="margin:0 0 4px; font-size:16px;">Staff Sign In</h3>
               <p class="muted" style="font-size:13px; margin:0 0 6px;">Enter your email address to continue.</p>
+              ${
+                showGoogle
+                  ? `<button type="button" class="btn secondary" id="ownerGoogleSignInBtn" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:10px;">
+                       <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.9 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l5.7-5.7C34.6 6.1 29.6 4 24 4c-7.5 0-13.9 4.2-17.2 10.4z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.4C29.6 35.3 26.9 36 24 36c-5.3 0-9.7-3-11.4-7.4l-6.6 5.1C9.9 39.7 16.4 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.4-2.4 4.4-4.5 5.8l6.6 5.4C40.9 36.5 44 30.9 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>
+                       Sign in with Google
+                     </button>
+                     <div style="display:flex; align-items:center; gap:8px; margin:8px 0; color:var(--muted); font-size:12px;">
+                       <div style="flex:1; height:1px; background:var(--rule);"></div>or<div style="flex:1; height:1px; background:var(--rule);"></div>
+                     </div>`
+                  : ""
+              }
               <form id="ownerEmailGateForm">
                 <label for="ownerGateEmail">Email</label>
                 <input type="email" id="ownerGateEmail" autocomplete="email" required>
@@ -9491,6 +9613,9 @@
         overlay.addEventListener("click", (e) => {
           if (e.target === overlay) closeOwnerAuthModal();
         });
+        const googleBtn = document.getElementById("ownerGoogleSignInBtn");
+        if (googleBtn)
+          googleBtn.addEventListener("click", handleOwnerGoogleSignIn);
         document
           .getElementById("ownerEmailGateForm")
           .addEventListener("submit", async (e) => {
@@ -9508,6 +9633,46 @@
             }
             openOwnerPasswordModal();
           });
+      }
+      /* Google Sign-In specifically for the Owner gate — unlike
+                 handleGoogleSignIn() (regular staff/student login, matched
+                 against the user roster), this checks the REAL, verified
+                 Google account email against OWNER_ALLOWED_EMAIL_HASHES. It's
+                 a strictly stronger check than the typed-email field above
+                 (which just trusts whatever was typed): Google itself proves
+                 the person actually controls that inbox. A matching account
+                 still has to clear the Owner password afterward — this only
+                 replaces the "type your email" step, never the password. */
+      async function handleOwnerGoogleSignIn() {
+        const errEl = document.getElementById("ownerGateError");
+        try {
+          const provider = new firebase.auth.GoogleAuthProvider();
+          const result = await firebase.auth().signInWithPopup(provider);
+          const email = (
+            (result.user && result.user.email) ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+          if (!email) throw new Error("no-email");
+          const emailHash = await sha256Hex(email);
+          if (!isOwnerAllowedEmailHash(emailHash)) {
+            await firebase.auth().signOut();
+            if (errEl) {
+              errEl.textContent = "No staff account found for this email.";
+              errEl.style.display = "";
+            }
+            return;
+          }
+          openOwnerPasswordModal();
+        } catch (e) {
+          if (e && e.code === "auth/popup-closed-by-user") return;
+          console.error("Owner Google sign-in failed", e);
+          if (errEl) {
+            errEl.textContent = "Google sign-in failed. Please try again.";
+            errEl.style.display = "";
+          }
+        }
       }
       /* ---------------- Owner Console password gate ----------------
                  Reached only after the email allow-list check above passes.
@@ -30441,6 +30606,7 @@
         autoConnectGithubRepo();
         refreshStorageMode();
         await loadCloudCache();
+        seedOwnerPasswordIfNeeded();
         startBackgroundSync();
 
         appMode = NavDB.get("appMode", "landing");

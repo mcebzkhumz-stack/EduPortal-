@@ -1,0 +1,21 @@
+[
+  {
+    "id": "sync-1785589417033-tdsjhpuu31",
+    "deviceId": "test-device",
+    "source": "browser",
+    "timestamp": 1234567890,
+    "syncedAt": "2026-08-01T13:03:37.033Z",
+    "payload": {
+      "deviceId": "test-device",
+      "pageTitle": "Test",
+      "url": "http://localhost",
+      "timestamp": 1234567890,
+      "storage": {
+        "localStorage": {
+          "foo": "bar"
+        },
+        "sessionStorage": {}
+      }
+    }
+  }
+]

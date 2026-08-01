@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { SyncService } from '../services/sync.service';
+import { SyncService } from './sync.service';
 
 export const syncRoutes = Router();
 const syncService = new SyncService();

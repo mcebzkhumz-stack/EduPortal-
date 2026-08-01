@@ -2,8 +2,8 @@ import { BackupService } from './backup.service';
 import { ReplicationService } from './replication.service';
 import { RemoteSyncService } from './remote-sync.service';
 import { MultiBackendSyncService } from './multi-backend-sync.service';
-import { SyncRecord, buildSyncRecord } from '../models/sync-record';
-import { ENV } from '../config/env';
+import { SyncRecord, buildSyncRecord } from './sync-record';
+import { ENV } from './env';
 
 export class SyncService {
   constructor(

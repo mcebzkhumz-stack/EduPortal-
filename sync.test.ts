@@ -1,7 +1,7 @@
-import { BackupService } from '../src/services/backup.service';
-import { ReplicationService } from '../src/services/replication.service';
-import { SyncService } from '../src/services/sync.service';
-import { RemoteSyncService } from '../src/services/remote-sync.service';
+import { BackupService } from './backup.service';
+import { ReplicationService } from './replication.service';
+import { SyncService } from './sync.service';
+import { RemoteSyncService } from './remote-sync.service';
 
 describe('Global Data Sync Server', () => {
   let syncService: SyncService;

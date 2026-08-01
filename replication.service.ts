@@ -1,4 +1,4 @@
-import { SyncRecord, buildSyncRecord } from '../models/sync-record';
+import { SyncRecord, buildSyncRecord } from './sync-record';
 
 export class ReplicationService {
   private readonly dataStore = new Map<string, SyncRecord>();

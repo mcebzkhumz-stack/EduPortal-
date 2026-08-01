@@ -5,3 +5,7 @@
 /ghcli
 /gh.cmd
 /gh_2.97.0_windows_amd64.zip
+node_modules
+
+# Ignore local sync storage created by the backend server
+/.sync-store.json

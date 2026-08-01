@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { ENV } from '../config/env';
+import { ENV } from './env';
 
 export class BackupService {
   constructor(private readonly backupDirectory: string = path.resolve(ENV.BACKUP_PATH)) {
