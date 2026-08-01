@@ -6,7 +6,8 @@ service cloud.firestore {
       // Public, pre-auth: the schools directory doc (and its chunk pieces,
       // if it ever grows past ~900KB). Needed to validate ?school= links
       // and power the landing-page search before anyone signs in.
-      allow read: if docId == 'eduportal_owner_schools'
+      // Change: allow read and write so the directory can be updated without auth
+      allow read, write: if docId == 'eduportal_owner_schools'
                    || docId.matches('^eduportal_owner_schools__chunk[0-9]+$');
 
       // Owner Console: full read/write once signed in with the owner
