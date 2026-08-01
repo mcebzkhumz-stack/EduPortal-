@@ -1,0 +1,26 @@
+name: Deploy to multiple hosts (placeholder)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare manifest and service-worker
+        run: |
+          set -e
+          # If your app includes generation scripts in the HTML, you can extract
+          # them using a headless node script or prebuilt tools. This job assumes
+          # manifest.json and service-worker.js are present in the repo root.
+          ls -la
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Notify
+        run: echo "This workflow is a placeholder. Add host-specific deploy steps and secrets."
