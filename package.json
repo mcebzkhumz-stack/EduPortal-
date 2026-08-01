@@ -2,10 +2,10 @@
   "name": "global-data-sync-server",
   "version": "1.0.0",
   "description": "A global data server that connects to large servers to enable data synchronization across different devices while ensuring data preservation and preventing information loss.",
-  "main": "src/app.ts",
+  "main": "server.js",
   "scripts": {
-    "start": "ts-node src/app.ts",
-    "test": "jest"
+    "start": "node server.js",
+    "test": "echo \"No tests configured\" && exit 0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

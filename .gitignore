@@ -1,5 +1,6 @@
-﻿# Local ignores
+# Local ignores
 .vscode/
 token.txt
 ghcli/
 gh.cmd
+node_modules/
