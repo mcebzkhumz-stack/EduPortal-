@@ -1,0 +1,5 @@
+﻿*.html text eol=crlf
+*.htm text eol=crlf
+*.sql text eol=crlf
+*.js text eol=crlf
+*.ts text eol=crlf
