@@ -1,6 +1,7 @@
-# Local ignores
-.vscode/
-token.txt
-ghcli/
-gh.cmd
-node_modules/
+# Ignore local personal access token file
+/token.txt
+
+# Ignore locally downloaded GitHub CLI binary
+/ghcli
+/gh.cmd
+/gh_2.97.0_windows_amd64.zip
