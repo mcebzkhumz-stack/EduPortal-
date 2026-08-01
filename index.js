@@ -3,29 +3,104 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.UPDATE_OPERATORS = exports.UNARY_OPERATORS = exports.STRING_UNARY_OPERATORS = exports.STATEMENT_OR_BLOCK_KEYS = exports.NUMBER_UNARY_OPERATORS = exports.NUMBER_BINARY_OPERATORS = exports.LOGICAL_OPERATORS = exports.INHERIT_KEYS = exports.FOR_INIT_KEYS = exports.FLATTENABLE_KEYS = exports.EQUALITY_BINARY_OPERATORS = exports.COMPARISON_BINARY_OPERATORS = exports.COMMENT_KEYS = exports.BOOLEAN_UNARY_OPERATORS = exports.BOOLEAN_NUMBER_BINARY_OPERATORS = exports.BOOLEAN_BINARY_OPERATORS = exports.BINARY_OPERATORS = exports.ASSIGNMENT_OPERATORS = void 0;
-const STATEMENT_OR_BLOCK_KEYS = exports.STATEMENT_OR_BLOCK_KEYS = ["consequent", "body", "alternate"];
-const FLATTENABLE_KEYS = exports.FLATTENABLE_KEYS = ["body", "expressions"];
-const FOR_INIT_KEYS = exports.FOR_INIT_KEYS = ["left", "init"];
-const COMMENT_KEYS = exports.COMMENT_KEYS = ["leadingComments", "trailingComments", "innerComments"];
-const LOGICAL_OPERATORS = exports.LOGICAL_OPERATORS = ["||", "&&", "??"];
-const UPDATE_OPERATORS = exports.UPDATE_OPERATORS = ["++", "--"];
-const BOOLEAN_NUMBER_BINARY_OPERATORS = exports.BOOLEAN_NUMBER_BINARY_OPERATORS = [">", "<", ">=", "<="];
-const EQUALITY_BINARY_OPERATORS = exports.EQUALITY_BINARY_OPERATORS = ["==", "===", "!=", "!=="];
-const COMPARISON_BINARY_OPERATORS = exports.COMPARISON_BINARY_OPERATORS = [...EQUALITY_BINARY_OPERATORS, "in", "instanceof"];
-const BOOLEAN_BINARY_OPERATORS = exports.BOOLEAN_BINARY_OPERATORS = [...COMPARISON_BINARY_OPERATORS, ...BOOLEAN_NUMBER_BINARY_OPERATORS];
-const NUMBER_BINARY_OPERATORS = exports.NUMBER_BINARY_OPERATORS = ["-", "/", "%", "*", "**", "&", "|", ">>", ">>>", "<<", "^"];
-const BINARY_OPERATORS = exports.BINARY_OPERATORS = ["+", ...NUMBER_BINARY_OPERATORS, ...BOOLEAN_BINARY_OPERATORS, "|>"];
-const ASSIGNMENT_OPERATORS = exports.ASSIGNMENT_OPERATORS = ["=", "+=", ...NUMBER_BINARY_OPERATORS.map(op => op + "="), ...LOGICAL_OPERATORS.map(op => op + "=")];
-const BOOLEAN_UNARY_OPERATORS = exports.BOOLEAN_UNARY_OPERATORS = ["delete", "!"];
-const NUMBER_UNARY_OPERATORS = exports.NUMBER_UNARY_OPERATORS = ["+", "-", "~"];
-const STRING_UNARY_OPERATORS = exports.STRING_UNARY_OPERATORS = ["typeof"];
-const UNARY_OPERATORS = exports.UNARY_OPERATORS = ["void", "throw", ...BOOLEAN_UNARY_OPERATORS, ...NUMBER_UNARY_OPERATORS, ...STRING_UNARY_OPERATORS];
-const INHERIT_KEYS = exports.INHERIT_KEYS = {
-  optional: ["typeAnnotation", "typeParameters", "returnType"],
-  force: ["start", "loc", "end"]
-};
-exports.BLOCK_SCOPED_SYMBOL = Symbol.for("var used to be block scoped");
-exports.NOT_LOCAL_BINDING = Symbol.for("should not be considered a local binding");
+Object.defineProperty(exports, "ALIAS_KEYS", {
+  enumerable: true,
+  get: function () {
+    return _utils.ALIAS_KEYS;
+  }
+});
+Object.defineProperty(exports, "BUILDER_KEYS", {
+  enumerable: true,
+  get: function () {
+    return _utils.BUILDER_KEYS;
+  }
+});
+Object.defineProperty(exports, "DEPRECATED_ALIASES", {
+  enumerable: true,
+  get: function () {
+    return _deprecatedAliases.DEPRECATED_ALIASES;
+  }
+});
+Object.defineProperty(exports, "DEPRECATED_KEYS", {
+  enumerable: true,
+  get: function () {
+    return _utils.DEPRECATED_KEYS;
+  }
+});
+Object.defineProperty(exports, "FLIPPED_ALIAS_KEYS", {
+  enumerable: true,
+  get: function () {
+    return _utils.FLIPPED_ALIAS_KEYS;
+  }
+});
+Object.defineProperty(exports, "NODE_FIELDS", {
+  enumerable: true,
+  get: function () {
+    return _utils.NODE_FIELDS;
+  }
+});
+Object.defineProperty(exports, "NODE_PARENT_VALIDATIONS", {
+  enumerable: true,
+  get: function () {
+    return _utils.NODE_PARENT_VALIDATIONS;
+  }
+});
+Object.defineProperty(exports, "NODE_UNION_SHAPES__PRIVATE", {
+  enumerable: true,
+  get: function () {
+    return _utils.NODE_UNION_SHAPES__PRIVATE;
+  }
+});
+Object.defineProperty(exports, "PLACEHOLDERS", {
+  enumerable: true,
+  get: function () {
+    return _placeholders.PLACEHOLDERS;
+  }
+});
+Object.defineProperty(exports, "PLACEHOLDERS_ALIAS", {
+  enumerable: true,
+  get: function () {
+    return _placeholders.PLACEHOLDERS_ALIAS;
+  }
+});
+Object.defineProperty(exports, "PLACEHOLDERS_FLIPPED_ALIAS", {
+  enumerable: true,
+  get: function () {
+    return _placeholders.PLACEHOLDERS_FLIPPED_ALIAS;
+  }
+});
+exports.TYPES = void 0;
+Object.defineProperty(exports, "VISITOR_KEYS", {
+  enumerable: true,
+  get: function () {
+    return _utils.VISITOR_KEYS;
+  }
+});
+require("./core.js");
+require("./flow.js");
+require("./jsx.js");
+require("./misc.js");
+require("./experimental.js");
+require("./typescript.js");
+var _utils = require("./utils.js");
+var _placeholders = require("./placeholders.js");
+var _deprecatedAliases = require("./deprecated-aliases.js");
+Object.keys(_deprecatedAliases.DEPRECATED_ALIASES).forEach(deprecatedAlias => {
+  _utils.FLIPPED_ALIAS_KEYS[deprecatedAlias] = _utils.FLIPPED_ALIAS_KEYS[_deprecatedAliases.DEPRECATED_ALIASES[deprecatedAlias]];
+});
+for (const {
+  types,
+  set
+} of _utils.allExpandedTypes) {
+  for (const type of types) {
+    const aliases = _utils.FLIPPED_ALIAS_KEYS[type];
+    if (aliases) {
+      aliases.forEach(set.add, set);
+    } else {
+      set.add(type);
+    }
+  }
+}
+const TYPES = exports.TYPES = [].concat(Object.keys(_utils.VISITOR_KEYS), Object.keys(_utils.FLIPPED_ALIAS_KEYS), Object.keys(_utils.DEPRECATED_KEYS));
 
 //# sourceMappingURL=index.js.map
