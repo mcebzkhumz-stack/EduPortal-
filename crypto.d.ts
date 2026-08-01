@@ -1,5 +1,8 @@
-import { RSAKeys } from './rsa-keys.js';
-import { SslCert } from './ssl-cert.js';
-export declare function generateKeys(): Promise<RSAKeys>;
-export declare function parseCert(cert: string): Promise<SslCert>;
-//# sourceMappingURL=crypto.d.ts.map
+import { Crypto } from './shared';
+export * from './shared';
+export interface CryptoSigner {
+    update(data: string): void;
+    sign(key: string, outputFormat: string): string;
+}
+export declare function createCrypto(): Crypto;
+export declare function hasBrowserCrypto(): boolean;
