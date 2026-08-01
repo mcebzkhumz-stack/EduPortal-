@@ -1,0 +1,5 @@
+﻿# Local ignores
+.vscode/
+token.txt
+ghcli/
+gh.cmd
