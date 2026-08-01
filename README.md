@@ -1,19 +1,19 @@
-# @babel/plugin-syntax-json-strings
+# @babel/template
 
-> Allow parsing of the U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR in JS strings
+> Generate an AST from a string template.
 
-See our website [@babel/plugin-syntax-json-strings](https://babeljs.io/docs/en/next/babel-plugin-syntax-json-strings.html) for more information.
+See our website [@babel/template](https://babeljs.io/docs/babel-template) for more information or the [issues](https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20template%22+is%3Aopen) associated with this package.
 
 ## Install
 
 Using npm:
 
 ```sh
-npm install --save-dev @babel/plugin-syntax-json-strings
+npm install --save-dev @babel/template
 ```
 
 or using yarn:
 
 ```sh
-yarn add @babel/plugin-syntax-json-strings --dev
+yarn add @babel/template --dev
 ```

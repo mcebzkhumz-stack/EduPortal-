@@ -3,20 +3,21 @@
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.default = void 0;
-
-var _helperPluginUtils = require("@babel/helper-plugin-utils");
-
-var _default = (0, _helperPluginUtils.declare)(api => {
-  api.assertVersion(7);
-  return {
-    name: "syntax-json-strings",
-
-    manipulateOptions(opts, parserOpts) {
-      parserOpts.plugins.push("jsonStrings");
-    }
-
-  };
+exports.statements = exports.statement = exports.smart = exports.program = exports.expression = exports.default = void 0;
+var formatters = require("./formatters.js");
+var _builder = require("./builder.js");
+const smart = exports.smart = (0, _builder.default)(formatters.smart);
+const statement = exports.statement = (0, _builder.default)(formatters.statement);
+const statements = exports.statements = (0, _builder.default)(formatters.statements);
+const expression = exports.expression = (0, _builder.default)(formatters.expression);
+const program = exports.program = (0, _builder.default)(formatters.program);
+var _default = exports.default = Object.assign(smart.bind(undefined), {
+  smart,
+  statement,
+  statements,
+  expression,
+  program,
+  ast: smart.ast
 });
 
-exports.default = _default;
+//# sourceMappingURL=index.js.map

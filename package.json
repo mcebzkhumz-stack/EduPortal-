@@ -1,23 +1,27 @@
 {
-  "name": "@babel/plugin-syntax-json-strings",
-  "version": "7.8.3",
-  "description": "Allow parsing of the U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR in JS strings",
-  "repository": "https://github.com/babel/babel/tree/master/packages/babel-plugin-syntax-json-strings",
+  "name": "@babel/template",
+  "version": "7.29.7",
+  "description": "Generate an AST from a string template.",
+  "author": "The Babel Team (https://babel.dev/team)",
+  "homepage": "https://babel.dev/docs/en/next/babel-template",
+  "bugs": "https://github.com/babel/babel/issues?utf8=%E2%9C%93&q=is%3Aissue+label%3A%22pkg%3A%20template%22+is%3Aopen",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
   },
-  "main": "lib/index.js",
-  "keywords": [
-    "babel-plugin"
-  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babel/babel.git",
+    "directory": "packages/babel-template"
+  },
+  "main": "./lib/index.js",
   "dependencies": {
-    "@babel/helper-plugin-utils": "^7.8.0"
+    "@babel/code-frame": "^7.29.7",
+    "@babel/parser": "^7.29.7",
+    "@babel/types": "^7.29.7"
   },
-  "peerDependencies": {
-    "@babel/core": "^7.0.0-0"
+  "engines": {
+    "node": ">=6.9.0"
   },
-  "devDependencies": {
-    "@babel/core": "^7.8.0"
-  }
+  "type": "commonjs"
 }
