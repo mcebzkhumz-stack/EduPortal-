@@ -59,6 +59,163 @@
     <meta name="google-site-verification" content="" />
     <meta name="robots" content="index,follow" />
     <meta name="application-name" content="EduPortal" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://www.google.com 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.firebaseio.com https://*.supabase.co https://*.googleapis.com https://*.google.com https://*.appsync-api.us-east-1.amazonaws.com https://*.gstatic.com; frame-src 'self' https://www.google.com; object-src 'none'; base-uri 'self';"
+    />
+    <meta name="referrer" content="same-origin" />
+    <script>
+      (function () {
+        const ALLOWED_ORIGINS = new Set([
+          location.origin,
+          "https://www.gstatic.com",
+          "https://cdn.jsdelivr.net",
+          "https://cdnjs.cloudflare.com",
+          "https://www.google.com",
+          "https://fonts.googleapis.com",
+          "https://fonts.gstatic.com",
+          "https://firebasestorage.googleapis.com",
+          "https://firestore.googleapis.com",
+          "https://identitytoolkit.googleapis.com",
+          "https://www.googleapis.com",
+        ]);
+
+        function parseUrl(value) {
+          if (!value) return null;
+          try {
+            return new URL(value, location.href);
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function isAllowedOrigin(value) {
+          const url = parseUrl(value);
+          if (!url) return false;
+          if (url.protocol === "blob:" || url.protocol === "data:") return true;
+          return ALLOWED_ORIGINS.has(url.origin);
+        }
+
+        function isBlockedScript(node) {
+          if (!node || node.tagName !== "SCRIPT") return false;
+          if (!node.src) return false;
+          if (!isAllowedOrigin(node.src)) {
+            console.warn("EduPortal guard: blocked untrusted script", node.src);
+            return true;
+          }
+          return false;
+        }
+
+        const originalAppendChild = Node.prototype.appendChild;
+        const originalInsertBefore = Node.prototype.insertBefore;
+        const originalReplaceChild = Node.prototype.replaceChild;
+
+        function protectInsertion(original) {
+          return function (newNode, referenceNode) {
+            if (isBlockedScript(newNode)) return newNode;
+            return original.call(this, newNode, referenceNode);
+          };
+        }
+
+        Node.prototype.appendChild = protectInsertion(originalAppendChild);
+        Node.prototype.insertBefore = protectInsertion(originalInsertBefore);
+        Node.prototype.replaceChild = function (newNode, oldNode) {
+          if (isBlockedScript(newNode)) return newNode;
+          return originalReplaceChild.call(this, newNode, oldNode);
+        };
+
+        const originalFetch = window.fetch;
+        if (originalFetch) {
+          window.fetch = function (input) {
+            const url = typeof input === "string" ? input : input && input.url;
+            const parsed = parseUrl(url);
+            if (parsed && !isAllowedOrigin(parsed.href)) {
+              console.warn("EduPortal guard: blocked fetch", url);
+              return Promise.reject(new Error("Blocked network request"));
+            }
+            return originalFetch.apply(this, arguments);
+          };
+        }
+
+        const originalXhrOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (method, url) {
+          const parsed = parseUrl(url);
+          if (parsed && !isAllowedOrigin(parsed.href)) {
+            console.warn("EduPortal guard: blocked XHR", url);
+            try {
+              this.abort();
+            } catch (e) {}
+            return;
+          }
+          return originalXhrOpen.apply(this, arguments);
+        };
+
+        const originalSendBeacon = navigator.sendBeacon;
+        if (originalSendBeacon) {
+          navigator.sendBeacon = function (url, data) {
+            const parsed = parseUrl(url);
+            if (parsed && !isAllowedOrigin(parsed.href)) {
+              console.warn("EduPortal guard: blocked sendBeacon", url);
+              return false;
+            }
+            return originalSendBeacon.call(this, url, data);
+          };
+        }
+
+        document.addEventListener(
+          "contextmenu",
+          (e) => {
+            if (!e.target.closest("input,textarea")) e.preventDefault();
+          },
+          { capture: true, passive: false },
+        );
+
+        document.addEventListener(
+          "keydown",
+          (e) => {
+            const blocked =
+              e.key === "F12" ||
+              ((e.ctrlKey || e.metaKey) &&
+                e.shiftKey &&
+                ["I", "J", "C"].includes(e.key.toUpperCase())) ||
+              ((e.ctrlKey || e.metaKey) && e.key.toUpperCase() === "U");
+            if (blocked) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          },
+          { capture: true, passive: false },
+        );
+
+        Document.prototype.write = function () {
+          console.warn("EduPortal guard: blocked document.write");
+        };
+
+        Object.defineProperty(window, "eval", {
+          value: function () {
+            throw new Error("EduPortal guard: eval disabled");
+          },
+          writable: false,
+          configurable: false,
+        });
+
+        Object.defineProperty(window, "Shinufu", {
+          value: Object.freeze({
+            guardEnabled: true,
+            allowedOrigins: Array.from(ALLOWED_ORIGINS),
+            isAllowedOrigin,
+          }),
+          writable: false,
+          configurable: false,
+        });
+
+        Object.defineProperty(window, "__EDUPORTAL_GUARD", {
+          value: true,
+          writable: false,
+          configurable: false,
+        });
+      })();
+    </script>
     <meta name="msapplication-TileColor" content="#1f6e5c" />
     <meta name="msapplication-config" content="browserconfig.xml" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -120,10 +277,26 @@
         --display: "Source Serif 4", "Iowan Old Style", Georgia, serif;
         --body: "IBM Plex Sans", -apple-system, Segoe UI, sans-serif;
         --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+        --app-wallpaper-url: none;
+        --app-wallpaper-blur: 0px;
+        --app-wallpaper-opacity: 1;
       }
 
       * {
         box-sizing: border-box;
+      }
+
+      /* ============= GLOBAL NO-HORIZONTAL-SLIDE SAFETY NET =============
+         Prevents the *whole page* from ever becoming horizontally
+         scrollable on any device, no matter what a deeply-nested inline
+         style, fixed-width panel, or long unbroken string does. This does
+         NOT affect the app's intentional inner horizontal scrollers
+         (tables, .slide-row, wbPagesStrip, etc.) — those keep their own
+         overflow-x:auto and just scroll inside their own box as designed.
+         It only clips runaway width at the document root. */
+      html {
+        overflow-x: hidden;
+        width: 100%;
       }
 
       body {
@@ -132,6 +305,28 @@
         color: var(--ink);
         font-family: var(--body);
         line-height: 1.5;
+        overflow-x: hidden;
+        width: 100%;
+        max-width: 100vw;
+      }
+
+      /* Long unbroken tokens (emails, URLs, IDs, long names dropped into
+         table cells or panels) are the most common invisible cause of
+         page-level horizontal slide on phones — wrap them instead. */
+      td,
+      th,
+      p,
+      .muted,
+      .panel,
+      .eyebrow {
+        overflow-wrap: break-word;
+        word-break: break-word;
+      }
+
+      img,
+      video,
+      iframe {
+        max-width: 100%;
       }
 
       h1,
@@ -268,6 +463,230 @@
 
         .a11y-controls {
           display: none;
+        }
+
+        /* Inbox / Discussion Rooms: fixed 220px list + content side-by-side
+           is fine down to tablet width, but on a phone it leaves too little
+           room for the thread and invites the whole panel to be dragged
+           sideways. Stack list above thread instead. */
+        .split-panel {
+          flex-direction: column;
+        }
+
+        .split-panel-side {
+          width: 100% !important;
+          border-right: none !important;
+          border-bottom: 1px solid var(--rule);
+          max-height: 180px;
+          overflow-y: auto;
+        }
+
+        .split-panel-main {
+          min-width: 0;
+        }
+      }
+
+      /* ============= UNIVERSAL SLIDER SYSTEM ============= */
+
+      /* Default: Grid layout for all sizes */
+      .slide-row {
+        display: grid;
+        gap: 14px;
+        grid-auto-flow: row;
+      }
+
+      /* Tablet: 2-column grid */
+      @media (min-width: 641px) and (max-width: 1024px) {
+        .slide-row {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 14px;
+        }
+      }
+
+      /* Mobile: Horizontal scrolling (480px - 640px) */
+      @media (max-width: 640px) {
+        .slide-row {
+          display: flex;
+          overflow-x: auto;
+          overflow-y: hidden;
+          gap: 12px;
+          padding-bottom: 8px;
+          padding-right: 14px;
+          scroll-snap-type: x mandatory;
+          scroll-behavior: smooth;
+          -webkit-overflow-scrolling: touch;
+          align-items: stretch;
+        }
+
+        .slide-row > * {
+          flex: 0 0 auto;
+          min-width: min(280px, calc(100vw - 32px));
+          scroll-snap-align: start;
+          scroll-snap-stop: always;
+        }
+      }
+
+      /* Very small mobile (< 480px): Adjusted sizing */
+      @media (max-width: 479px) {
+        .slide-row {
+          gap: 10px;
+          padding-right: 12px;
+        }
+
+        .slide-row > * {
+          min-width: min(260px, calc(100vw - 28px));
+        }
+      }
+
+      /* Auto-slide indicators (optional visual feedback) */
+      .slide-row[data-slide-indicator="true"]::after {
+        content: attr(data-slide-count);
+        position: absolute;
+        bottom: 2px;
+        right: 4px;
+        font-size: 10px;
+        color: var(--muted);
+        background: var(--accent-soft);
+        padding: 2px 6px;
+        border-radius: 3px;
+      }
+
+      /* Slide item styling */
+      .slide-item {
+        scroll-snap-align: start;
+        scroll-snap-stop: always;
+      }
+
+      /* Scroll thumb styling for webkit browsers */
+      .slide-row::-webkit-scrollbar {
+        height: 6px;
+      }
+
+      .slide-row::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .slide-row::-webkit-scrollbar-thumb {
+        background: var(--rule);
+        border-radius: 3px;
+      }
+
+      .slide-row::-webkit-scrollbar-thumb:hover {
+        background: var(--muted);
+      }
+
+      /* Firefox scrollbar */
+      .slide-row {
+        scrollbar-color: var(--rule) transparent;
+        scrollbar-width: thin;
+      }
+
+      /* Slider settings panel */
+      .slider-settings-panel {
+        background: var(--accent-soft);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 12px;
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .slider-settings-panel label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        margin: 0;
+        cursor: pointer;
+      }
+
+      .slider-settings-panel input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+      }
+
+      .slider-settings-panel select {
+        padding: 4px 8px;
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+        font-size: 13px;
+      }
+
+      /* Settings button in topbar */
+      #sliderSettingsBtn {
+        padding: 6px 10px;
+        font-size: 12px;
+        text-align: center;
+      }
+
+      /* Slider settings modal/panel */
+      #sliderSettingsPanel {
+        position: fixed;
+        top: 60px;
+        right: 14px;
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        padding: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        z-index: 1000;
+        min-width: 280px;
+        max-width: 320px;
+      }
+
+      #sliderSettingsPanel h4 {
+        margin: 0 0 10px;
+        font-size: 14px;
+      }
+
+      #sliderSettingsPanel label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      #sliderSettingsPanel input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+      }
+
+      #sliderSettingsPanel .setting-group {
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      #sliderSettingsPanel .setting-group:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+
+      /* Slider decoration indicator */
+      .slider-indicator {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 6px;
+        font-weight: 600;
+      }
+
+      @media (max-width: 640px) {
+        #sliderSettingsPanel {
+          right: 8px;
+          left: 8px;
+          max-width: none;
         }
       }
 
@@ -645,9 +1064,11 @@
       }
 
       .role-menu-panel.open {
-        max-height: 400px;
+        max-height: min(400px, 60vh);
         opacity: 1;
         pointer-events: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .role-menu-panel button {
@@ -957,12 +1378,46 @@
       .opt-row {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-top: 6px;
+        gap: 10px;
+        margin-top: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+        background: var(--panel);
+        transition:
+          border-color 0.15s,
+          background 0.15s;
+      }
+
+      .opt-row:has(input[type="radio"]:checked) {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .opt-row input[type="radio"] {
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+        cursor: pointer;
       }
 
       .opt-row input[type="text"] {
         flex: 1;
+        border: none;
+        background: transparent;
+        padding: 4px 2px;
+      }
+
+      .opt-row input[type="text"]:focus {
+        outline: none;
+        background: #fff;
+        border-radius: 4px;
+      }
+
+      .opt-row input[type="text"][readonly] {
+        color: var(--ink);
+        cursor: default;
       }
 
       table {
@@ -1475,6 +1930,79 @@
         margin-top: 8px;
       }
 
+      /* School Settings — institutional sliders (attendance threshold,
+                 class size caps, grading/discipline thresholds, etc.) shown
+                 in the School Profile editor. Values persist through the
+                 same profile object as the rest of this form, so they ride
+                 along on the app's existing cross-device sync. */
+      .school-slider-group {
+        margin-bottom: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--rule);
+      }
+      .school-slider-group:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+      }
+      input[type="range"].school-slider {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--rule);
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        cursor: pointer;
+        touch-action: none;
+      }
+      input[type="range"].school-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      }
+      input[type="range"].school-slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+      }
+      input[type="range"].school-slider::-moz-range-track {
+        background: transparent;
+        border: none;
+      }
+
+      @media (max-width: 640px) {
+        .sp-photo-row {
+          overflow-x: auto;
+          padding-bottom: 8px;
+          scroll-snap-type: x proximity;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .sp-photo-row > * {
+          flex: 0 0 auto;
+          scroll-snap-align: start;
+        }
+
+        .sp-hours-grid {
+          overflow-x: auto;
+          padding-bottom: 8px;
+        }
+
+        .sp-hours-row {
+          min-width: 380px;
+        }
+      }
+
       .sp-hours-row {
         display: flex;
         align-items: center;
@@ -1618,9 +2146,11 @@
       }
 
       .tab-menu-panel.open {
-        max-height: 400px;
+        max-height: min(400px, 60vh);
         opacity: 1;
         pointer-events: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
       }
 
       .tab-menu-panel button {
@@ -1746,8 +2276,8 @@
       }
 
       /* Moodle-style additions: announcements, forum, calendar, assignments, gradebook */
-      .tab-menu-panel {
-        max-height: 400px;
+      .tab-menu-panel.open {
+        max-height: min(400px, 60vh);
         overflow-y: auto;
       }
 
@@ -2234,6 +2764,61 @@
         font-family: var(--mono);
       }
 
+      /* Per-user chat wallpaper (Messages + Discussion Rooms threads).
+                 Background is applied inline via JS (applyChatWallpaper) since
+                 it's per-account, not a static theme — this class just gives the
+                 thread breathing room and a rounded edge so a wallpaper reads as
+                 a distinct surface instead of bleeding into the panel around it. */
+      .chat-thread {
+        border-radius: 10px;
+        padding: 10px;
+        transition: background-color 0.15s ease;
+      }
+
+      .wallpaper-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 4px;
+      }
+
+      .wallpaper-swatch {
+        position: relative;
+        aspect-ratio: 1;
+        border-radius: 10px;
+        border: 2px solid var(--rule);
+        cursor: pointer;
+        padding: 0;
+        overflow: hidden;
+        background-color: var(--paper);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: var(--muted);
+      }
+
+      .wallpaper-swatch:hover {
+        border-color: var(--accent);
+      }
+
+      .wallpaper-swatch.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-soft);
+      }
+
+      .wallpaper-swatch img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .wallpaper-swatch-custom {
+        font-size: 18px;
+        background: var(--accent-soft);
+        border-style: dashed;
+      }
+
       .mail-row {
         display: flex;
         align-items: center;
@@ -2673,6 +3258,11 @@
       #onlineUsersBtn {
         position: relative;
       }
+      .online-users-wrap,
+      .notif-bell-wrap {
+        position: relative;
+        flex-shrink: 0;
+      }
       .online-count-badge {
         display: none;
         min-width: 16px;
@@ -2696,7 +3286,7 @@
         max-height: 0;
       }
       .online-users-panel.open {
-        max-height: 420px;
+        max-height: min(420px, 60vh);
         overflow-y: auto;
       }
       .online-users-panel .ou-section-label {
@@ -3214,6 +3804,148 @@
         background: var(--accent);
         color: #fff;
       }
+
+      /* ---------------- App wallpaper (whole-app background) ----------------
+                 A device-only display preference, same category as the a11y
+                 controls above. Paints behind everything via body::before so
+                 it never interferes with layout; a body class turns it on and
+                 picks which source (--app-wallpaper-url) to read. */
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        opacity: 1;
+      }
+      body.app-wallpaper-active::before {
+        opacity: var(--app-wallpaper-opacity);
+        filter: blur(var(--app-wallpaper-blur));
+        background-position: center;
+        background-repeat: no-repeat;
+      }
+      body.app-wallpaper-color::before {
+        background-color: var(--app-wallpaper-url);
+      }
+      body.app-wallpaper-gradient::before {
+        background-image: var(--app-wallpaper-url);
+      }
+      body.app-wallpaper-image::before {
+        background-image: var(--app-wallpaper-url);
+        background-size: cover;
+        background-attachment: fixed;
+      }
+      /* Readability: once a wallpaper is on, give the chrome and content
+                 area a translucent card surface instead of a flat opaque one. */
+      body.app-wallpaper-active .topbar {
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(8px);
+        /* backdrop-filter creates a new stacking context, which otherwise
+                   traps the tab/role dropdown menus' z-index inside .topbar and
+                   stops them from out-stacking main's own new context below —
+                   on small screens (where tabs collapse into a dropdown that
+                   overflows into the content area) that made the dropdown
+                   render behind the dashboard. Explicit z-index here keeps
+                   .topbar's whole stacking context above main's. */
+        position: relative;
+        z-index: 30;
+      }
+      body.app-wallpaper-active main {
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(4px);
+        border-radius: 10px;
+        padding-left: 24px;
+        padding-right: 24px;
+        position: relative;
+        z-index: 1;
+      }
+      /* The logged-out landing page ("Find your school") isn't wrapped in a
+                 .topbar/main pair, so without this its title, subtitle, results
+                 count, and the Staff Sign In link would sit directly on top of
+                 the wallpaper with nothing behind them. */
+      body.app-wallpaper-active .landing-brand {
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(4px);
+        padding: 18px 28px;
+        border-radius: 12px;
+        box-shadow: 0 2px 14px rgba(0, 0, 0, 0.08);
+      }
+      body.app-wallpaper-active .landing-results-label {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.88);
+        padding: 3px 10px;
+        border-radius: 6px;
+      }
+      body.app-wallpaper-active .landing-owner-link {
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(4px);
+        border-radius: 6px;
+      }
+
+      .app-wallpaper-panel {
+        max-width: 480px;
+        width: 100%;
+        max-height: 86vh;
+        overflow-y: auto;
+      }
+      .app-wallpaper-section {
+        margin-bottom: 18px;
+      }
+      .app-wallpaper-section h4 {
+        font-size: 12px;
+        font-weight: 600;
+        margin: 0 0 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .app-wallpaper-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+        gap: 10px;
+      }
+      .app-wallpaper-tile {
+        aspect-ratio: 1;
+        border: 2px solid var(--rule);
+        border-radius: 8px;
+        cursor: pointer;
+        padding: 0;
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease;
+        background-size: cover;
+        background-position: center;
+      }
+      .app-wallpaper-tile:hover {
+        transform: scale(1.05);
+      }
+      .app-wallpaper-tile.active {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-soft);
+      }
+      .app-wallpaper-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .app-wallpaper-control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .app-wallpaper-control-group label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .app-wallpaper-preview {
+        width: 100%;
+        height: 90px;
+        border-radius: 8px;
+        border: 1px solid var(--rule);
+        background-size: cover;
+        background-position: center;
+        margin-top: 4px;
+      }
     </style>
     <!-- Cloud backend SDKs — used for cross-device shared storage when this
          page is hosted outside Claude.ai (e.g. on GitHub Pages). Only ONE of
@@ -3314,6 +4046,7 @@
     <div id="schoolView" class="hidden-view">
       <div id="loginGateView"></div>
       <div id="pwModalOverlay"></div>
+      <div id="wallpaperModalOverlay"></div>
       <div class="topbar">
         <div class="topbar-left">
           <button
@@ -3550,7 +4283,11 @@
       <button type="button" id="a11yContrastBtn" title="High contrast">
         ◐
       </button>
+      <button type="button" id="appWallpaperBtn" title="Background wallpaper">
+        🖼️
+      </button>
     </div>
+    <div id="appWallpaperOverlay"></div>
 
     <script>
       /* ---------------- Build info ----------------
@@ -3622,6 +4359,250 @@
             };
         });
       })();
+
+      /* ---------------- App wallpaper (whole-app background) ----------------
+                 Personal, device-only display preference — same idea as the
+                 a11y controls above, just for the background behind the whole
+                 app. Stored in this browser's localStorage only (never synced
+                 as school/app data). Applies a body class + CSS custom
+                 properties; the paint rules live in the <style> block above
+                 via body::before. */
+      const APP_WALLPAPER_KEY = "eduportal_app_wallpaper";
+      const APP_WALLPAPER_COLORS = [
+        { name: "Parchment (default)", value: "#f6f4ee", type: "color" },
+        { name: "Soft Green", value: "#e4efe9", type: "color" },
+        { name: "Light Blue", value: "#e3f2fd", type: "color" },
+        { name: "Pale Yellow", value: "#fffde7", type: "color" },
+        { name: "Warm Gray", value: "#efece4", type: "color" },
+        { name: "Pure White", value: "#ffffff", type: "color" },
+      ];
+      const APP_WALLPAPER_GRADIENTS = [
+        {
+          name: "Emerald",
+          value: "linear-gradient(135deg, #1f6e5c 0%, #38ef7d 100%)",
+          type: "gradient",
+        },
+        {
+          name: "Ocean",
+          value: "linear-gradient(135deg, #0093E9 0%, #80D0C7 100%)",
+          type: "gradient",
+        },
+        {
+          name: "Sunset",
+          value:
+            "linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 90%, #2BFF88 100%)",
+          type: "gradient",
+        },
+        {
+          name: "Dusk",
+          value:
+            "linear-gradient(135deg, #4158D0 0%, #C850C0 50%, #FFCC70 100%)",
+          type: "gradient",
+        },
+      ];
+
+      let appWallpaperPrefs = { type: "none", value: "", blur: 0, opacity: 1 };
+      try {
+        const savedWp = JSON.parse(
+          localStorage.getItem(APP_WALLPAPER_KEY) || "{}",
+        );
+        appWallpaperPrefs = { ...appWallpaperPrefs, ...savedWp };
+      } catch (e) {}
+
+      function persistAppWallpaper() {
+        try {
+          localStorage.setItem(
+            APP_WALLPAPER_KEY,
+            JSON.stringify(appWallpaperPrefs),
+          );
+        } catch (e) {}
+      }
+
+      function applyAppWallpaper() {
+        const root = document.documentElement;
+        const body = document.body;
+        body.classList.remove(
+          "app-wallpaper-active",
+          "app-wallpaper-color",
+          "app-wallpaper-gradient",
+          "app-wallpaper-image",
+        );
+        const { type, value, blur, opacity } = appWallpaperPrefs;
+        if (!type || type === "none" || !value) return;
+        root.style.setProperty("--app-wallpaper-blur", `${blur || 0}px`);
+        root.style.setProperty(
+          "--app-wallpaper-opacity",
+          String(opacity == null ? 1 : opacity),
+        );
+        if (type === "color") {
+          root.style.setProperty("--app-wallpaper-url", value);
+          body.classList.add("app-wallpaper-active", "app-wallpaper-color");
+        } else if (type === "gradient") {
+          root.style.setProperty("--app-wallpaper-url", value);
+          body.classList.add("app-wallpaper-active", "app-wallpaper-gradient");
+        } else if (type === "image") {
+          root.style.setProperty("--app-wallpaper-url", `url("${value}")`);
+          body.classList.add("app-wallpaper-active", "app-wallpaper-image");
+        }
+      }
+
+      function setAppWallpaper(type, value, opts) {
+        appWallpaperPrefs = {
+          type,
+          value: value || "",
+          blur: opts && opts.blur != null ? opts.blur : appWallpaperPrefs.blur,
+          opacity:
+            opts && opts.opacity != null
+              ? opts.opacity
+              : appWallpaperPrefs.opacity,
+        };
+        applyAppWallpaper();
+        persistAppWallpaper();
+      }
+
+      function appWallpaperPreviewStyle(type, value) {
+        if (type === "color") return `background:${value};`;
+        if (type === "gradient") return `background:${value};`;
+        if (type === "image")
+          return `background-image:url("${value}"); background-size:cover; background-position:center;`;
+        return "";
+      }
+
+      function renderAppWallpaperModal() {
+        const overlay = document.getElementById("appWallpaperOverlay");
+        if (!overlay) return;
+        const p = appWallpaperPrefs;
+        const isNoneActive = !p.type || p.type === "none";
+        overlay.className = "modal-overlay";
+        overlay.style.display = "flex";
+        overlay.innerHTML = `
+          <div class="login-card app-wallpaper-panel">
+            <h3 style="margin:0 0 4px; font-size:16px;">🖼️ Background Wallpaper</h3>
+            <p class="muted" style="font-size:12.5px; margin:0 0 14px;">Personalize the background behind EduPortal on this device. This is a display preference only — it isn't shared with your school.</p>
+
+            <div class="app-wallpaper-section">
+              <h4>Colors</h4>
+              <div class="app-wallpaper-grid" id="appWpColorGrid">
+                <button type="button" class="app-wallpaper-tile ${isNoneActive ? "active" : ""}" data-wp-reset="1" title="Default" style="display:flex; align-items:center; justify-content:center; font-size:16px; background:#fff;">✕</button>
+                ${APP_WALLPAPER_COLORS.map(
+                  (c, i) =>
+                    `<button type="button" class="app-wallpaper-tile ${p.type === "color" && p.value === c.value ? "active" : ""}" data-wp-color="${i}" title="${escapeHtml(c.name)}" style="${appWallpaperPreviewStyle(c.type, c.value)}"></button>`,
+                ).join("")}
+              </div>
+            </div>
+
+            <div class="app-wallpaper-section">
+              <h4>Gradients</h4>
+              <div class="app-wallpaper-grid" id="appWpGradientGrid">
+                ${APP_WALLPAPER_GRADIENTS.map(
+                  (g, i) =>
+                    `<button type="button" class="app-wallpaper-tile ${p.type === "gradient" && p.value === g.value ? "active" : ""}" data-wp-gradient="${i}" title="${escapeHtml(g.name)}" style="${appWallpaperPreviewStyle(g.type, g.value)}"></button>`,
+                ).join("")}
+              </div>
+            </div>
+
+            <div class="app-wallpaper-section">
+              <h4>Custom Photo</h4>
+              <input type="file" id="appWpImageInput" accept="image/*" style="font-size:12.5px;">
+            </div>
+
+            <div class="app-wallpaper-section">
+              <h4>Effects</h4>
+              <div class="app-wallpaper-controls">
+                <div class="app-wallpaper-control-group">
+                  <label>Blur: <span id="appWpBlurVal">${p.blur || 0}</span>px</label>
+                  <input type="range" id="appWpBlur" min="0" max="16" value="${p.blur || 0}" ${isNoneActive ? "disabled" : ""}>
+                </div>
+                <div class="app-wallpaper-control-group">
+                  <label>Opacity: <span id="appWpOpacityVal">${Math.round((p.opacity == null ? 1 : p.opacity) * 100)}</span>%</label>
+                  <input type="range" id="appWpOpacity" min="0.2" max="1" step="0.05" value="${p.opacity == null ? 1 : p.opacity}" ${isNoneActive ? "disabled" : ""}>
+                </div>
+              </div>
+              <div class="app-wallpaper-preview" id="appWpPreview" style="${!isNoneActive ? appWallpaperPreviewStyle(p.type, p.value) + `opacity:${p.opacity == null ? 1 : p.opacity}; filter:blur(${p.blur || 0}px);` : "background:#fff;"}"></div>
+            </div>
+
+            <button type="button" class="btn secondary" id="appWpCloseBtn" style="width:100%; margin-top:4px;">Close</button>
+          </div>`;
+
+        overlay.querySelector("[data-wp-reset]").onclick = () => {
+          setAppWallpaper("none", "");
+          renderAppWallpaperModal();
+        };
+        overlay.querySelectorAll("[data-wp-color]").forEach((btn) => {
+          btn.onclick = () => {
+            const c = APP_WALLPAPER_COLORS[+btn.dataset.wpColor];
+            setAppWallpaper(c.type, c.value);
+            renderAppWallpaperModal();
+          };
+        });
+        overlay.querySelectorAll("[data-wp-gradient]").forEach((btn) => {
+          btn.onclick = () => {
+            const g = APP_WALLPAPER_GRADIENTS[+btn.dataset.wpGradient];
+            setAppWallpaper(g.type, g.value);
+            renderAppWallpaperModal();
+          };
+        });
+        const imgInput = overlay.querySelector("#appWpImageInput");
+        if (imgInput)
+          imgInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (file.size > 4 * 1024 * 1024) {
+              alert(
+                "That image is a bit large for a browser-stored wallpaper. Please pick one under 4MB.",
+              );
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              setAppWallpaper("image", ev.target.result);
+              renderAppWallpaperModal();
+            };
+            reader.readAsDataURL(file);
+          };
+        const blurSlider = overlay.querySelector("#appWpBlur");
+        if (blurSlider)
+          blurSlider.oninput = (e) => {
+            const blur = parseInt(e.target.value, 10);
+            overlay.querySelector("#appWpBlurVal").textContent = blur;
+            setAppWallpaper(appWallpaperPrefs.type, appWallpaperPrefs.value, {
+              blur,
+            });
+            const preview = overlay.querySelector("#appWpPreview");
+            if (preview) preview.style.filter = `blur(${blur}px)`;
+          };
+        const opacitySlider = overlay.querySelector("#appWpOpacity");
+        if (opacitySlider)
+          opacitySlider.oninput = (e) => {
+            const opacity = parseFloat(e.target.value);
+            overlay.querySelector("#appWpOpacityVal").textContent = Math.round(
+              opacity * 100,
+            );
+            setAppWallpaper(appWallpaperPrefs.type, appWallpaperPrefs.value, {
+              opacity,
+            });
+            const preview = overlay.querySelector("#appWpPreview");
+            if (preview) preview.style.opacity = opacity;
+          };
+        overlay.querySelector("#appWpCloseBtn").onclick =
+          closeAppWallpaperModal;
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) closeAppWallpaperModal();
+        });
+      }
+
+      function closeAppWallpaperModal() {
+        const overlay = document.getElementById("appWallpaperOverlay");
+        if (!overlay) return;
+        overlay.style.display = "none";
+        overlay.innerHTML = "";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        applyAppWallpaper();
+        const btn = document.getElementById("appWallpaperBtn");
+        if (btn) btn.onclick = renderAppWallpaperModal;
+      });
       /* ---------------- Cloud backend bridge (Firestore / Supabase / Amplify) ----------------
                  When this page runs inside Claude.ai, window.storage already exists
                  and is used directly (see the "Cloud storage layer" block below).
@@ -5648,6 +6629,7 @@
         "resultBatches",
         "attendance",
         "submissions",
+        "inbox",
       ];
       let rtSyncUnsubs = [];
       let rtSyncPrefix = null;
@@ -5760,6 +6742,88 @@
       async function hashPassword(password, salt) {
         if (!salt) return sha256Hex(password);
         return sha256Hex(`${salt}:${password}`);
+      }
+
+      const SHINUFU_LOGIN_MAX_ATTEMPTS = 6;
+      const SHINUFU_LOGIN_LOCKOUT_MINUTES = 15;
+      function shinufuSafeStorage() {
+        try {
+          return window.localStorage;
+        } catch (e) {
+          return null;
+        }
+      }
+      function shinufuLoginKey(username) {
+        return `shinufu_login_${currentSchoolId}_${username}`;
+      }
+      function shinufuGetLoginState(username) {
+        const ls = shinufuSafeStorage();
+        if (!ls) return { tries: 0, lockedUntil: 0 };
+        try {
+          const raw = ls.getItem(shinufuLoginKey(username));
+          const parsed = raw ? JSON.parse(raw) : null;
+          return {
+            tries: parsed && Number.isFinite(parsed.tries) ? parsed.tries : 0,
+            lockedUntil:
+              parsed && Number.isFinite(parsed.lockedUntil)
+                ? parsed.lockedUntil
+                : 0,
+          };
+        } catch (e) {
+          return { tries: 0, lockedUntil: 0 };
+        }
+      }
+      function shinufuSetLoginState(username, state) {
+        const ls = shinufuSafeStorage();
+        if (!ls) return;
+        try {
+          ls.setItem(shinufuLoginKey(username), JSON.stringify(state));
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      function shinufuResetLoginState(username) {
+        const ls = shinufuSafeStorage();
+        if (!ls) return;
+        try {
+          ls.removeItem(shinufuLoginKey(username));
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      function shinufuRecordFailedLogin(username) {
+        const normalized = username.trim().toUpperCase();
+        const state = shinufuGetLoginState(normalized);
+        const now = Date.now();
+        const attempts =
+          state.lockedUntil > now ? state.tries : state.tries + 1;
+        const lockedUntil =
+          attempts >= SHINUFU_LOGIN_MAX_ATTEMPTS
+            ? now + SHINUFU_LOGIN_LOCKOUT_MINUTES * 60 * 1000
+            : state.lockedUntil > now
+              ? state.lockedUntil
+              : 0;
+        shinufuSetLoginState(normalized, {
+          tries: attempts,
+          lockedUntil,
+        });
+        return { tries: attempts, lockedUntil };
+      }
+      function shinufuCheckLoginLock(username) {
+        const normalized = username.trim().toUpperCase();
+        const state = shinufuGetLoginState(normalized);
+        const now = Date.now();
+        if (state.lockedUntil > now) {
+          const remaining = Math.ceil((state.lockedUntil - now) / 60000);
+          return `Too many failed attempts. Try again in ${remaining} minute${
+            remaining === 1 ? "" : "s"
+          }.`;
+        }
+        return null;
+      }
+      function shinufuRequireCaptcha(username) {
+        const state = shinufuGetLoginState(username);
+        return state.tries >= 3 && recaptchaConfigured();
       }
 
       /* ---- Per-record atomic writes ----
@@ -6007,6 +7071,8 @@
         "rooms",
         "schoolLog",
         "schoolReturns",
+        "scholarships",
+        "scholarshipApplications",
         "serviceRequests",
         "sharedLedger",
         "stakeholders",
@@ -6040,6 +7106,166 @@
           if (statusEl.style) statusEl.style.color = "var(--bad)";
         } else alert(msg);
         return true;
+      }
+
+      /* ---------------- Chat wallpaper (Messages + Discussion Rooms) ----------------
+                 A per-account background for the two chat-style surfaces (private
+                 Messages and Discussion Rooms), the same idea as WhatsApp's
+                 per-chat wallpaper. Stored in the normal per-school DB under a
+                 "userPrefs" record keyed by user id, so it rides the app's
+                 existing cloud sync and follows the account to any device —
+                 not a per-browser NavDB setting, since "my wallpaper" is a
+                 personal preference tied to the signed-in person, same spirit
+                 as their profile photo. Solid/pattern presets are pure CSS (no
+                 image assets to ship); a custom photo is resized client-side
+                 with the same helper already used for badges/profile photos. */
+      const WALLPAPER_PRESETS = [
+        { id: "none", label: "Default" },
+        { id: "sand", label: "Sand", bg: "#f1ece0" },
+        { id: "sage", label: "Sage", bg: "#e4efe9" },
+        { id: "sky", label: "Sky", bg: "#e6f0f5" },
+        { id: "blush", label: "Blush", bg: "#f6e8de" },
+        {
+          id: "dots",
+          label: "Dots",
+          bg: "#f6f4ee",
+          image:
+            "radial-gradient(rgba(31,110,92,0.18) 1.5px, transparent 1.5px)",
+          size: "16px 16px",
+        },
+        {
+          id: "grid",
+          label: "Grid",
+          bg: "#f6f4ee",
+          image:
+            "linear-gradient(rgba(31,110,92,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(31,110,92,0.12) 1px, transparent 1px)",
+          size: "22px 22px",
+        },
+        {
+          id: "stripes",
+          label: "Stripes",
+          bg: "#f6f4ee",
+          image:
+            "repeating-linear-gradient(45deg, rgba(31,110,92,0.10) 0 2px, transparent 2px 14px)",
+        },
+      ];
+      function getUserPrefs(userId) {
+        if (!userId) return null;
+        return (
+          arr(DB.get("userPrefs", [])).find((p) => p.id === userId) || null
+        );
+      }
+      function saveUserPrefPatch(userId, patch) {
+        if (!userId) return;
+        const existing = getUserPrefs(userId) || { id: userId };
+        DB.setRecord("userPrefs", { ...existing, ...patch });
+      }
+      function getChatWallpaper(userId) {
+        const prefs = getUserPrefs(userId);
+        return (prefs && prefs.chatWallpaper) || { type: "none" };
+      }
+      function saveChatWallpaper(userId, wallpaper) {
+        saveUserPrefPatch(userId, { chatWallpaper: wallpaper });
+      }
+      // Applies the signed-in user's wallpaper choice to a thread container
+      // (e.g. #msgThread, #roomThread). Safe to call on every render — it
+      // always resets background properties first so switching back to
+      // Default or between presets never leaves a stale style behind.
+      function applyChatWallpaper(el, userId) {
+        if (!el) return;
+        el.classList.add("chat-thread");
+        el.style.backgroundColor = "";
+        el.style.backgroundImage = "";
+        el.style.backgroundSize = "";
+        el.style.backgroundRepeat = "";
+        el.style.backgroundPosition = "";
+        const wp = getChatWallpaper(userId);
+        if (wp.type === "preset") {
+          const preset = WALLPAPER_PRESETS.find((p) => p.id === wp.presetId);
+          if (preset && preset.id !== "none") {
+            el.style.backgroundColor = preset.bg || "";
+            if (preset.image) {
+              el.style.backgroundImage = preset.image;
+              el.style.backgroundSize = preset.size || "auto";
+              el.style.backgroundRepeat = "repeat";
+            }
+          }
+        } else if (wp.type === "custom" && wp.image) {
+          el.style.backgroundImage = `url(${wp.image})`;
+          el.style.backgroundSize = "cover";
+          el.style.backgroundPosition = "center";
+          el.style.backgroundRepeat = "no-repeat";
+        }
+      }
+      // Renders the swatch picker into the shared #wallpaperModalOverlay.
+      // onSaved lets a caller do a lighter-weight refresh than a full
+      // render() if it already has direct handles to the elements to update
+      // (both call sites currently just re-render, which is cheap here).
+      function openWallpaperModal(userId, onSaved) {
+        const overlay = document.getElementById("wallpaperModalOverlay");
+        if (!overlay || !userId) return;
+        const current = getChatWallpaper(userId);
+        overlay.style.display = "flex";
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
+            <div class="login-card" style="max-width:380px;">
+              <h3 style="margin:0 0 4px; font-size:16px;">Chat wallpaper</h3>
+              <p class="muted" style="font-size:12.5px; margin:0 0 4px;">Pick a background for your chats. Only you see it — it won't change anyone else's view.</p>
+              <div class="wallpaper-grid" id="wallpaperGrid">
+                ${WALLPAPER_PRESETS.map(
+                  (p) => `<button type="button"
+                    class="wallpaper-swatch ${current.type === "preset" && current.presetId === p.id ? "selected" : current.type === "none" && p.id === "none" ? "selected" : ""}"
+                    data-preset="${p.id}"
+                    style="${p.id === "none" ? "" : `background-color:${p.bg || "#f6f4ee"};${p.image ? `background-image:${p.image}; background-size:${p.size || "auto"}; background-repeat:repeat;` : ""}`}"
+                    title="${escapeHtml(p.label)}">${p.id === "none" ? "✕" : ""}</button>`,
+                ).join("")}
+                <button type="button" class="wallpaper-swatch wallpaper-swatch-custom ${current.type === "custom" ? "selected" : ""}" id="wallpaperCustomBtn" title="Upload a photo">
+                  ${current.type === "custom" && current.image ? `<img src="${current.image}" alt="">` : "📷"}
+                </button>
+              </div>
+              <input type="file" id="wallpaperFileInput" accept="image/*" style="display:none;">
+              <div style="display:flex; gap:8px; margin-top:16px;">
+                <button type="button" class="btn secondary" id="wallpaperCloseBtn" style="flex:1;">Done</button>
+              </div>
+            </div>`;
+        const close = () => {
+          overlay.style.display = "none";
+          overlay.innerHTML = "";
+        };
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) close();
+        });
+        overlay.querySelector("#wallpaperCloseBtn").onclick = close;
+        const finish = () => {
+          close();
+          if (onSaved) onSaved();
+          else render();
+        };
+        overlay.querySelectorAll("[data-preset]").forEach((btn) => {
+          btn.onclick = () => {
+            saveChatWallpaper(userId, {
+              type: "preset",
+              presetId: btn.dataset.preset,
+            });
+            finish();
+          };
+        });
+        const fileInput = overlay.querySelector("#wallpaperFileInput");
+        overlay.querySelector("#wallpaperCustomBtn").onclick = () =>
+          fileInput.click();
+        fileInput.onchange = () => {
+          const file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+          if (rejectIfFileTooLarge(file)) return;
+          resizeImageToDataURL(file, 1000, (dataUrl) => {
+            if (!dataUrl) {
+              alert("Couldn't load that image — try a different photo.");
+              return;
+            }
+            saveChatWallpaper(userId, { type: "custom", image: dataUrl });
+            finish();
+          });
+        };
       }
 
       /* ---------------- School badge (crest/logo) helper ----------------
@@ -6667,6 +7893,7 @@
             id: "prog1",
             name: "BSc Statistics & Economics",
             faculty: "Faculty of Science & Agriculture",
+            campus: "Main Campus",
             department: "Department of Statistics & Demography",
             degreeType: "Bachelor of Science",
             nqfLevel: 7,
@@ -6677,6 +7904,7 @@
             id: "prog2",
             name: "BCom Accounting",
             faculty: "Faculty of Commerce",
+            campus: "Main Campus",
             department: "Department of Accounting",
             degreeType: "Bachelor of Commerce",
             nqfLevel: 7,
@@ -9794,22 +11022,32 @@
             const errEl = document.getElementById("ownerAuthError");
             const pw = document.getElementById("ownerAuthPw").value;
             if (hasPw) {
+              const lockError = shinufuCheckLoginLock("OWNER");
+              if (lockError) {
+                errEl.textContent = lockError;
+                errEl.style.display = "";
+                return;
+              }
               if (functionsConfigured()) {
                 const result = await firestoreSignInOwner(pw);
                 if (!result.ok) {
+                  shinufuRecordFailedLogin("OWNER");
                   errEl.textContent = result.error || "Incorrect password.";
                   errEl.style.display = "";
                   return;
                 }
+                shinufuResetLoginState("OWNER");
                 await loadCloudCache();
               } else {
                 const salt = OwnerDB.get("ownerPasswordSalt", null);
                 const hash = await hashPassword(pw, salt);
                 if (hash !== OwnerDB.get("ownerPasswordHash", null)) {
+                  shinufuRecordFailedLogin("OWNER");
                   errEl.textContent = "Incorrect password.";
                   errEl.style.display = "";
                   return;
                 }
+                shinufuResetLoginState("OWNER");
                 if (!salt) {
                   const newSalt = randomHex(16);
                   OwnerDB.set("ownerPasswordSalt", newSalt);
@@ -9919,6 +11157,105 @@
       document
         .getElementById("ownerSignOutBtn")
         .addEventListener("click", backToLanding);
+
+      // Share / export features (Shinufu sharing — WhatsApp, Facebook, Email, JSON, Moodle-style .mbz)
+      function generateShareUrl() {
+        try {
+          // include currentSchoolId so recipient opens same context
+          const url = new URL(location.href);
+          if (currentSchoolId) url.searchParams.set("school", currentSchoolId);
+          return url.toString();
+        } catch (e) {
+          return location.href;
+        }
+      }
+
+      function downloadBlob(filename, blob) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 5000);
+      }
+
+      async function exportDataJson() {
+        // Collect the main app data slices that make sense to share/import
+        const payload = {
+          meta: {
+            schoolId: currentSchoolId,
+            exportedAt: new Date().toISOString(),
+          },
+          users: DB.get("users", []),
+          assignments: DB.get("assignments", []),
+          materials: DB.get("materials", []),
+          quizzes: DB.get("quizzes", []),
+          submissions: DB.get("submissions", []),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        });
+        downloadBlob(
+          `eduportal_export_${currentSchoolId || "site"}.json`,
+          blob,
+        );
+      }
+
+      async function exportMoodleBackup() {
+        // Create a simple Moodle-like backup bundle (.mbz is just a zip)
+        try {
+          if (!window.JSZip) throw new Error("JSZip not available");
+          const zip = new JSZip();
+          // Put selected collections inside the zip as JSON files
+          zip.file(
+            "moodle_backup_meta.json",
+            JSON.stringify({
+              schoolId: currentSchoolId,
+              exportedAt: new Date().toISOString(),
+            }),
+          );
+          zip.file("users.json", JSON.stringify(DB.get("users", [])));
+          zip.file("materials.json", JSON.stringify(DB.get("materials", [])));
+          zip.file(
+            "assignments.json",
+            JSON.stringify(DB.get("assignments", [])),
+          );
+          zip.file("quizzes.json", JSON.stringify(DB.get("quizzes", [])));
+          const content = await zip.generateAsync({ type: "blob" });
+          downloadBlob(
+            `eduportal_moodle_backup_${currentSchoolId || "site"}.mbz`,
+            content,
+          );
+        } catch (e) {
+          alert("Export failed: " + e.message);
+        }
+      }
+
+      function shareViaNavigator() {
+        const url = generateShareUrl();
+        const title = document.title || "EduPortal";
+        const text = `Open this EduPortal link:`;
+        if (navigator.share) {
+          navigator.share({ title, text, url }).catch(() => {});
+        } else {
+          // fallback to copying
+          copyToClipboard(url);
+          alert("Link copied to clipboard — share it where you like.");
+        }
+      }
+
+      function shareToWhatsApp() {
+        const url = generateShareUrl();
+        const text = `Open this EduPortal link: ${url}`;
+        const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(wa, "_blank");
+      }
+
+      // Share modal and social-share UI removed per user request — targeted
+      // delivery implemented elsewhere (teacher -> specific username).
 
       let state = {
         roleTab: "student",
@@ -10089,12 +11426,17 @@
               .value.trim()
               .toUpperCase();
             const password = document.getElementById("loginPassword").value;
+            const lockError = shinufuCheckLoginLock(username);
+            if (lockError) {
+              loginState = {
+                ...loginState,
+                username,
+                error: lockError,
+              };
+              renderLoginGate();
+              return;
+            }
 
-            // Real-security mode: the Cloud Function is the source of
-            // truth for credentials (it's the only thing allowed to read
-            // this school's users doc pre-auth). A successful call also
-            // signs this browser in to Firebase, so getUsers() below can
-            // actually read the school's data once we reload the cache.
             if (functionsConfigured()) {
               const result = await firestoreSignIn(
                 currentSchoolId,
@@ -10102,6 +11444,7 @@
                 password,
               );
               if (!result.ok) {
+                shinufuRecordFailedLogin(username);
                 loginState = {
                   ...loginState,
                   username,
@@ -10110,6 +11453,7 @@
                 renderLoginGate();
                 return;
               }
+              shinufuResetLoginState(username);
               await loadCloudCache();
             }
 
@@ -10117,6 +11461,7 @@
               (u) => (u.username || "").toUpperCase() === username,
             );
             if (!user) {
+              shinufuRecordFailedLogin(username);
               loginState = {
                 ...loginState,
                 username,
@@ -10139,6 +11484,7 @@
               }
               const hash = await hashPassword(password, user.passwordSalt);
               if (hash !== user.passwordHash) {
+                shinufuRecordFailedLogin(username);
                 loginState = {
                   ...loginState,
                   username,
@@ -10147,6 +11493,7 @@
                 renderLoginGate();
                 return;
               }
+              shinufuResetLoginState(username);
               if (!user.passwordSalt) {
                 const users = getUsers();
                 const idx = users.findIndex((x) => x.id === user.id);
@@ -11199,6 +12546,105 @@
           administration: "",
         };
       }
+      /* ---- School Settings — institutional sliders ----
+                 Per-school knobs a Principal/Admin can tune (attendance
+                 threshold, class size cap, grading/discipline thresholds,
+                 fee deadline, messaging behaviour, etc). Stored on
+                 profile.sliders and edited from the School Profile tab,
+                 right alongside opening hours and info sections — so they
+                 ride the same getSchools()/saveSchools() cross-device sync
+                 as the rest of the profile, no separate storage channel
+                 needed. */
+      const SCHOOL_SLIDERS = {
+        attendanceThreshold: {
+          label: "Attendance Threshold (%)",
+          min: 50,
+          max: 100,
+          step: 1,
+          default: 80,
+          unit: "%",
+          hint: "Minimum attendance required to be marked present.",
+        },
+        maxClassSize: {
+          label: "Maximum Class Size",
+          min: 10,
+          max: 80,
+          step: 1,
+          default: 35,
+          unit: "",
+          hint: "Recommended maximum students per class.",
+        },
+        passThreshold: {
+          label: "Pass Threshold (%)",
+          min: 20,
+          max: 80,
+          step: 1,
+          default: 40,
+          unit: "%",
+          hint: "Minimum grade % to pass a subject.",
+        },
+        gradingCurve: {
+          label: "Grading Curve Multiplier",
+          min: 0.5,
+          max: 2.0,
+          step: 0.1,
+          default: 1.0,
+          unit: "x",
+          hint: "Apply a curve to all grades (1.0 = no curve).",
+        },
+        demeritThreshold: {
+          label: "Demerit Suspension Threshold",
+          min: 10,
+          max: 100,
+          step: 1,
+          default: 50,
+          unit: "",
+          hint: "Demerits before automatic suspension review.",
+        },
+        caWeight: {
+          label: "Maximum CA Weight (%)",
+          min: 20,
+          max: 70,
+          step: 1,
+          default: 40,
+          unit: "%",
+          hint: "Continuous assessment weight in final grade.",
+        },
+        feePaymentDeadline: {
+          label: "Fee Payment Deadline (days)",
+          min: 1,
+          max: 60,
+          step: 1,
+          default: 14,
+          unit: "d",
+          hint: "Days from term start before fees are overdue.",
+        },
+        onlineStatusThreshold: {
+          label: "Online Status Threshold (seconds)",
+          min: 30,
+          max: 300,
+          step: 15,
+          default: 150,
+          unit: "s",
+          hint: "User is online if last activity within this many seconds.",
+        },
+        messageRetentionDays: {
+          label: "Message Retention (days)",
+          min: 30,
+          max: 1825,
+          step: 1,
+          default: 365,
+          unit: "d",
+          hint: "Days before automatic message deletion.",
+        },
+      };
+      function defaultSchoolSliders() {
+        const d = {};
+        Object.keys(SCHOOL_SLIDERS).forEach((key) => {
+          d[key] = SCHOOL_SLIDERS[key].default;
+        });
+        return d;
+      }
       /* Always returns a complete, defaulted profile object — callers never
                  need to null-check individual fields. Tagline falls back to the
                  school's existing SEO description so a school that never opens
@@ -11224,7 +12670,17 @@
           links: Array.isArray(p.links) ? p.links : [],
           googleRating: p.googleRating || "",
           googleReviewCount: p.googleReviewCount || "",
+          sliders:
+            p.sliders && typeof p.sliders === "object"
+              ? { ...defaultSchoolSliders(), ...p.sliders }
+              : defaultSchoolSliders(),
         };
+      }
+      /* Reads a school's slider values (defaulted) — for display in other
+                 interfaces (Owner Console, IT Management) without pulling in
+                 the rest of the profile editor. */
+      function getSchoolSliders(meta) {
+        return getSchoolProfile(meta).sliders;
       }
       function formatHourLabel(h12) {
         const m = /^(\d{1,2}):(\d{2})$/.exec((h12 || "").trim());
@@ -11347,6 +12803,32 @@
       }
       function saveApplications(a) {
         return DB.set("applications", a);
+      }
+      /* Scholarship programmes defined by the Registrar's Office — each one
+                 carries its own custom application form (a list of {id,label,type,
+                 options,required} fields, parsed from a simple "Label | type"
+                 line syntax so this stays a plain-data structure with no extra
+                 UI framework). Separate from `applications` (prospective-student
+                 admission applications) and `serviceRequests` (general Student
+                 Services enquiries, which still surface scholarship *enquiries*
+                 as free text — this is the structured award workflow). */
+      function getScholarships() {
+        return arr(DB.get("scholarships", []));
+      }
+      function saveScholarships(s) {
+        return DB.set("scholarships", s);
+      }
+      /* One row per student application to a scholarship. `answers` is keyed
+                 by the scholarship's field ids. `score`/`scoreNotes` are filled in
+                 during review; `status` drives the selection workflow (Submitted →
+                 Under Review → Shortlisted/Waitlisted → Awarded/Rejected);
+                 `disbursements` is an append-only log of payments made against an
+                 Awarded application. */
+      function getScholarshipApplications() {
+        return arr(DB.get("scholarshipApplications", []));
+      }
+      function saveScholarshipApplications(a) {
+        return DB.set("scholarshipApplications", a);
       }
       /* Student Services requests (bursary/financial aid, accommodation, health,
                  counselling) submitted by students and handled by the Registrar's Office. */
@@ -11581,6 +13063,92 @@
       }
       function saveWrittenTestMarks(m) {
         return DB.set("writtenTestMarks", m);
+      }
+      /* ---- Teacher CPD (Continuing Professional Development) ----
+                 cpdEvents: one row per PD activity a teacher logs (workshop,
+                 course, conference, webinar) with hours + optional
+                 certificate upload. cpdGoals: a teacher's own IDP
+                 (Individual Development Plan) — freeform goals with a
+                 target date and a status the teacher moves along. */
+      function getCpdEvents() {
+        return arr(DB.get("cpdEvents", []));
+      }
+      function saveCpdEvents(e) {
+        return DB.set("cpdEvents", e);
+      }
+      function getCpdGoals() {
+        return arr(DB.get("cpdGoals", []));
+      }
+      function saveCpdGoals(g) {
+        return DB.set("cpdGoals", g);
+      }
+      /* ---- Work-Based Learning (internships & placements) ----
+                 internships: opportunities posted by school leadership.
+                 placements: one row per student application against an
+                 internship (applied → accepted/rejected → completed).
+                 workLogs: hours/tasks a student on an accepted placement
+                 records over time, tied to their placement. Completion
+                 badges are freeform strings awarded on the placement
+                 record itself once it's marked completed. */
+      function getInternships() {
+        return arr(DB.get("internships", []));
+      }
+      function saveInternships(i) {
+        return DB.set("internships", i);
+      }
+      function getPlacements() {
+        return arr(DB.get("placements", []));
+      }
+      function savePlacements(p) {
+        return DB.set("placements", p);
+      }
+      function getWorkLogs() {
+        return arr(DB.get("workLogs", []));
+      }
+      function saveWorkLogs(w) {
+        return DB.set("workLogs", w);
+      }
+      /* ---- External Exam Board Integration ----
+                 examRegistrations: a student entered for an external board's
+                 exam sitting (board name, candidate number, subjects).
+                 examResults: one row per subject result against a
+                 registration, stamped with a verification code derived
+                 from the record's own contents — re-deriving the code from
+                 the stored fields and comparing it catches any record that
+                 was hand-edited after issue (see verifyExamResultCode). */
+      function getExamRegistrations() {
+        return arr(DB.get("examRegistrations", []));
+      }
+      function saveExamRegistrations(r) {
+        return DB.set("examRegistrations", r);
+      }
+      function getExamResults() {
+        return arr(DB.get("examResults", []));
+      }
+      function saveExamResults(r) {
+        return DB.set("examResults", r);
+      }
+      /* Small non-cryptographic checksum, good enough to flag an edited
+                 field (typo-fix or tamper) without needing a server. Not a
+                 substitute for a real signature — it just gives staff a
+                 quick, offline way to tell "matches what was issued" from
+                 "something about this record changed since". */
+      function examVerificationCode(result) {
+        const basis = [
+          result.id,
+          result.registrationId,
+          result.studentId,
+          result.subject,
+          result.grade,
+          result.score,
+          result.issuedAt,
+        ].join("|");
+        let hash = 0;
+        for (let i = 0; i < basis.length; i++) {
+          hash = (hash * 31 + basis.charCodeAt(i)) >>> 0;
+        }
+        const code = hash.toString(36).toUpperCase().padStart(8, "0");
+        return code.slice(0, 4) + "-" + code.slice(4, 8);
       }
       function getMaterials() {
         return arr(DB.get("materials", []));
@@ -12821,6 +14389,30 @@
               <span class="muted" id="spSaveStatus" style="font-size:12.5px; margin-left:10px;"></span>
             </form>
 
+            <div class="eyebrow" style="margin-top:28px;">School Settings — Institutional Sliders</div>
+            <p class="muted" style="font-size:12px;">These apply school-wide to attendance tracking, grading, discipline, and communications, and sync across all devices the moment you let go of a slider.</p>
+            <div id="sliderSettingsContainer" style="margin-top:16px;">
+              ${Object.entries(SCHOOL_SLIDERS)
+                .map(([key, def]) => {
+                  const value =
+                    profile.sliders[key] !== undefined
+                      ? profile.sliders[key]
+                      : def.default;
+                  const displayValue =
+                    def.step < 1 ? Number(value).toFixed(1) : value;
+                  return `
+                  <div class="school-slider-group">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                      <strong style="font-size:13px;">${escapeHtml(def.label)}</strong>
+                      <span style="background:var(--accent-soft); color:var(--accent); padding:3px 8px; border-radius:3px; font-size:13px; font-weight:600; min-width:45px; text-align:center;" id="slider-value-${key}">${displayValue}${def.unit}</span>
+                    </div>
+                    <input type="range" class="school-slider" id="slider-${key}" data-slider-key="${key}" min="${def.min}" max="${def.max}" step="${def.step}" value="${value}">
+                    <div class="muted" style="font-size:11.5px; margin-top:6px;">${escapeHtml(def.hint)}</div>
+                  </div>`;
+                })
+                .join("")}
+            </div>
+
             <div class="eyebrow" style="margin-top:22px;">People Also Ask (FAQs)</div>
             <div id="spFaqList">
               ${profile.faqs.length ? profile.faqs.map((f, i) => `<div class="qcard"><div class="qcard-head"><strong style="font-size:13.5px;">${escapeHtml(f.q)}</strong><button type="button" class="btn danger small" data-sp-faq-del="${i}">Remove</button></div><p class="muted" style="margin:6px 0 0; font-size:12.5px;">${escapeHtml(f.a)}</p></div>`).join("") : '<div class="empty">No FAQs yet.</div>'}
@@ -12858,6 +14450,25 @@
             syncSchoolsToGithub(`updated school profile — ${arrS[idx].name}`);
           renderSchoolProfileEditorInto(container, schoolId);
         };
+
+        container.querySelectorAll(".school-slider").forEach((slider) => {
+          slider.addEventListener("input", (e) => {
+            const key = e.target.dataset.sliderKey;
+            const def = SCHOOL_SLIDERS[key];
+            const value = parseFloat(e.target.value);
+            const valueEl = container.querySelector(`#slider-value-${key}`);
+            if (valueEl)
+              valueEl.textContent =
+                (def.step < 1 ? value.toFixed(1) : value) + def.unit;
+          });
+          slider.addEventListener("change", (e) => {
+            const key = e.target.dataset.sliderKey;
+            const value = parseFloat(e.target.value);
+            persist((prof) => {
+              prof.sliders = { ...prof.sliders, [key]: value };
+            });
+          });
+        });
 
         const photoFile = container.querySelector("#spPhotoFile");
         if (photoFile)
@@ -13058,6 +14669,7 @@
           ["glossary", "Glossary"],
           ["attendance", "Attendance"],
           ["timetable", "Timetable"],
+          ["workExperience", "Work Experience"],
           ["badges", "Badges"],
           ["announcements", "Announcements"],
           ["email", "Email"],
@@ -13089,6 +14701,8 @@
           ["attendance", "Attendance"],
           ["timetable", "Timetable"],
           ["discipline", "Behaviour Log"],
+          ["cpd", "CPD & Development"],
+          ["workExperience", "Work Experience"],
           ["announcements", "Announcements"],
           ["email", "Email"],
           ["calendar", "Calendar"],
@@ -13112,6 +14726,8 @@
           ["meetings", "Meetings & Committee"],
           ["funds", "School Funds"],
           ["budget", "Annual Budget"],
+          ["examBoard", "Exam Board"],
+          ["workExperience", "Work Experience"],
           ["stakeholders", "Community & Partners"],
           ["returns", "Reports & Returns"],
           ["schoolProfile", "School Profile"],
@@ -13227,6 +14843,7 @@
           ["planner", "Academic Planner"],
           ["advising", "Academic Advising"],
           ["services", "Student Services"],
+          ["scholarships", "Scholarships"],
         ],
         teacher: [
           ["moduleMarks", "Module Marks & DP"],
@@ -13235,10 +14852,12 @@
         principal: [
           ["senate", "Senate Approvals"],
           ["programmes", "Programmes & Modules"],
+          ["facultyReport", "Cross-Campus Report"],
         ],
         admin: [
           ["registrar", "Registrar Console"],
           ["applications", "Applications"],
+          ["scholarships", "Scholarship Management"],
         ],
       };
       const TERTIARY_ROLE_TAB_LABEL = {
@@ -13514,6 +15133,18 @@
         render_library_view(main, user);
       window.render_teacher_library = (main, user) =>
         render_library_view(main, user);
+
+      /* CPD (teacher only), Work-Based Learning (student / teacher / principal
+                 views), and Exam Board (principal only). */
+      window.render_teacher_cpd = (main, user) => renderTeacherCpd(main, user);
+      window.render_student_workExperience = (main, user) =>
+        renderStudentWorkExperience(main, user);
+      window.render_teacher_workExperience = (main, user) =>
+        renderTeacherWorkExperience(main, user);
+      window.render_principal_workExperience = (main, user) =>
+        renderPrincipalWorkExperience(main, user);
+      window.render_principal_examBoard = (main, user) =>
+        renderExamBoard(main, user);
 
       /* Announcements, Calendar, Email & Dashboard share one implementation
                  across every role — permissions inside each function branch on
@@ -15249,8 +16880,11 @@
             </div>
             <label>Description (optional)</label>
             <textarea id="matDesc" placeholder="What is this file for?"></textarea>
-            <label>File</label>
-            <input type="file" id="matFile">
+              <label>File</label>
+              <input type="file" id="matFile">
+              <label style="margin-top:8px;">Deliver to (optional)
+                <input type="text" id="matRecipient" placeholder="recipient username or name" style="width:100%; margin-top:6px;">
+              </label>
             <button class="btn" id="matSave" style="margin-top:14px;">Upload &amp; share</button>
             <p class="muted" id="matStatus" style="margin-top:10px;"></p>
           </div>
@@ -15275,7 +16909,7 @@
           const reader = new FileReader();
           reader.onload = () => {
             const all = getMaterials();
-            all.push({
+            const mat = {
               id: uid("mat"),
               title,
               class: cls,
@@ -15286,12 +16920,50 @@
               fileData: reader.result,
               fileName: file.name,
               uploadedAt: new Date().toISOString(),
-            });
+            };
+            all.push(mat);
             const ok = saveMaterials(all);
             if (!ok) {
               statusEl.textContent =
                 "Couldn't save — the file may be too large for local storage. Try a smaller file.";
               return;
+            }
+            // Targeted delivery: notify a specific username if provided in the
+            // matRecipient input (teacher can optionally specify a username to
+            // deliver this material directly to that user).
+            try {
+              const recipientInput = main.querySelector("#matRecipient");
+              const recipientUsername = recipientInput
+                ? recipientInput.value.trim()
+                : "";
+              if (recipientUsername) {
+                const recipient = getUsers().find(
+                  (u) =>
+                    u.username === recipientUsername ||
+                    u.name === recipientUsername,
+                );
+                if (recipient) {
+                  // Create a per-user notification record that recipient's client will receive via realtime sync
+                  pushNotification(recipient.id, {
+                    type: "material",
+                    title: `New material from ${user.name}`,
+                    body: mat.title || mat.fileName || "New file",
+                  });
+                  // Also set a small inbox-style record so clients that list materials for a user can fetch it
+                  DB.setRecord("inbox", {
+                    id: uid("inb"),
+                    toUserId: recipient.id,
+                    fromUserId: user.id,
+                    type: "material",
+                    title: mat.title,
+                    fileRef: mat.id,
+                    fileName: mat.fileName,
+                    createdAt: new Date().toISOString(),
+                  });
+                }
+              }
+            } catch (e) {
+              console.error("Targeted delivery failed", e);
             }
             render();
           };
@@ -17425,7 +19097,7 @@
           const b = draftBankQuestion;
           const isEditingExisting = mine.some((x) => x.id === b.id);
           panel.innerHTML = `<h3 style="font-size:15px;">${isEditingExisting ? "Edit question" : "New bank question"}</h3>
-            <div class="grid2">
+            <div class="grid2 slide-row">
               <div><label>Category</label><input type="text" id="bqCategory" list="bqCatList" value="${escapeHtml(b.category)}" placeholder="e.g. Algebra"><datalist id="bqCatList">${categories.map((c) => `<option value="${escapeHtml(c)}">`).join("")}</datalist></div>
               <div><label>Difficulty</label><select id="bqDifficulty">${QUESTION_DIFFICULTIES.map((d) => `<option value="${d}" ${b.difficulty === d ? "selected" : ""}>${d[0].toUpperCase() + d.slice(1)}</option>`).join("")}</select></div>
               <div><label>Type</label><select id="bqType">${QUESTION_TYPES.map((t) => `<option value="${t[0]}" ${b.type === t[0] ? "selected" : ""}>${t[1]}</option>`).join("")}</select></div>
@@ -17689,7 +19361,7 @@
           <div class="eyebrow">New assessment</div>
           <h2>Create Quiz</h2>
           <div class="panel">
-            <div class="grid2">
+            <div class="grid2 slide-row">
               <div><label>Quiz title</label><input type="text" id="qTitle" placeholder="e.g. Algebra: Linear Equations"></div>
               <div><label>Class</label><input type="text" id="qClass" value="${user.class || ""}" placeholder="e.g. Form 4A"></div>
               <div><label>Opens</label><input type="date" id="qOpen" value="${todayISO()}"></div>
@@ -17698,7 +19370,7 @@
           </div>
           <div class="panel">
             <h3 style="font-size:15px;">Timing &amp; security</h3>
-            <div class="grid2">
+            <div class="grid2 slide-row">
               <div><label>Time limit (minutes, optional)</label><input type="number" min="1" id="qTimeLimit" value="${draftQuizSettings.timeLimitMin}" placeholder="Untimed"></div>
               <div style="display:flex; align-items:flex-end; gap:16px; padding-bottom:6px;">
                 <label style="display:flex; align-items:center; gap:8px; font-weight:normal;"><input type="checkbox" id="qLockdown" style="width:auto;" ${draftQuizSettings.lockdown ? "checked" : ""}> Lockdown mode</label>
@@ -17711,7 +19383,7 @@
             <label style="display:flex; align-items:center; gap:8px; font-weight:normal;"><input type="checkbox" id="qAdaptive" style="width:auto;" ${draftQuizSettings.adaptive ? "checked" : ""}> Make this an adaptive quiz</label>
             <p class="muted" style="font-size:11px; margin:2px 0 10px;">Draws one auto-gradable question at a time from a bank category, getting harder after a correct answer and easier after a wrong one, instead of using the fixed question list below.</p>
             <div id="qAdaptiveFields" style="display:${draftQuizSettings.adaptive ? "" : "none"};">
-              <div class="grid2">
+              <div class="grid2 slide-row">
                 <div><label>Bank category</label><input type="text" id="qAdaptiveCat" list="qBankCatList" value="${escapeHtml(draftQuizSettings.adaptiveCategory)}" placeholder="e.g. Algebra"></div>
                 <div><label>Number of questions</label><input type="number" min="1" id="qAdaptiveCount" value="${draftQuizSettings.adaptiveCount}"></div>
               </div>
@@ -17783,7 +19455,7 @@
               (
                 rule,
                 ri,
-              ) => `<div class="grid2" data-rule="${ri}" style="align-items:end; margin-top:6px;">
+              ) => `<div class="grid2 slide-row" data-rule="${ri}" style="align-items:end; margin-top:6px;">
               <div><label>Category</label><input type="text" data-rule-cat="${ri}" list="qBankCatList" value="${escapeHtml(rule.category)}" placeholder="e.g. Algebra"></div>
               <div style="display:flex; gap:8px; align-items:end;">
                 <div style="flex:1;"><label>Count</label><input type="number" min="1" data-rule-count="${ri}" value="${rule.count}"></div>
@@ -22445,7 +24117,7 @@
         main.innerHTML = `<div class="eyebrow">${escapeHtml(roleLabel(user.role))}</div><h2>Dashboard</h2>
           <p class="muted">Welcome back, ${escapeHtml(user.name)}.</p>
 
-          <div class="grid2" style="align-items:start;">
+          <div class="grid2 slide-row" style="align-items:start;">
             <div class="panel">
               <h3 style="font-size:16px; margin:0 0 4px;">Timeline</h3>
               <p class="muted" style="font-size:12.5px; margin:0 0 10px;">What needs your attention in the next 14 days.</p>
@@ -22748,6 +24420,615 @@
         paintList("");
         main.querySelector("#glSearch").oninput = (e) =>
           paintList(e.target.value);
+      }
+
+      /* ---------------- Teacher CPD (Continuing Professional Development) ---------------- */
+      function renderTeacherCpd(main, user) {
+        const events = getCpdEvents()
+          .filter((e) => e.teacherId === user.id)
+          .slice()
+          .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        const goals = getCpdGoals()
+          .filter((g) => g.teacherId === user.id)
+          .slice()
+          .sort((a, b) =>
+            (a.targetDate || "").localeCompare(b.targetDate || ""),
+          );
+        const totalHours = events.reduce(
+          (sum, e) => sum + (Number(e.hours) || 0),
+          0,
+        );
+        const completedGoals = goals.filter(
+          (g) => g.status === "completed",
+        ).length;
+        const CPD_TYPES = [
+          "Workshop",
+          "Course",
+          "Conference",
+          "Webinar",
+          "Seminar",
+          "Other",
+        ];
+        const GOAL_STATUSES = [
+          "not-started",
+          "in-progress",
+          "paused",
+          "completed",
+        ];
+        main.innerHTML = `<div class="eyebrow">Professional Growth</div><h2>CPD & Development</h2>
+          <div class="stat-row">
+            <div class="stat-card"><div class="num">${events.length}</div><div class="lbl">PD activities logged</div></div>
+            <div class="stat-card"><div class="num">${totalHours}</div><div class="lbl">Hours on record</div></div>
+            <div class="stat-card"><div class="num">${goals.length}</div><div class="lbl">Development goals</div></div>
+            <div class="stat-card"><div class="num">${completedGoals}</div><div class="lbl">Goals completed</div></div>
+          </div>
+          <div class="panel">
+            <div class="eyebrow">Log a PD activity</div>
+            <div class="grid2">
+              <div><label>Title</label><input type="text" id="cpdTitle" placeholder="e.g. ICT in Education Workshop"></div>
+              <div><label>Type</label><select class="field" id="cpdType">${CPD_TYPES.map((t) => `<option>${t}</option>`).join("")}</select></div>
+            </div>
+            <div class="grid2">
+              <div><label>Date</label><input type="date" id="cpdDate" value="${todayISO()}"></div>
+              <div><label>Hours</label><input type="number" id="cpdHours" min="0" step="0.5" value="1"></div>
+            </div>
+            <label>Certificate link (optional)</label><input type="text" id="cpdCertUrl" placeholder="https://...">
+            <button class="btn" id="cpdSave" style="margin-top:14px;">Log activity</button>
+          </div>
+          <h3 style="font-size:16px; margin-top:20px;">Your PD history</h3>
+          ${
+            events.length === 0
+              ? '<div class="empty">No PD activities logged yet.</div>'
+              : `<div class="panel"><table><thead><tr><th>Title</th><th>Type</th><th>Date</th><th>Hours</th><th>Certificate</th><th></th></tr></thead><tbody>
+            ${events
+              .map(
+                (e) =>
+                  `<tr><td>${escapeHtml(e.title)}</td><td>${escapeHtml(e.type)}</td><td>${escapeHtml(e.date)}</td><td>${e.hours}</td><td>${e.certUrl ? `<a href="${escapeHtml(e.certUrl)}" target="_blank" rel="noopener">View</a>` : "\u2014"}</td><td><button class="btn danger small" data-del-cpd-event="${e.id}">Delete</button></td></tr>`,
+              )
+              .join("")}
+            </tbody></table></div>`
+          }
+          <div class="panel" style="margin-top:20px;">
+            <div class="eyebrow">Add a development goal</div>
+            <div class="grid2">
+              <div><label>Goal</label><input type="text" id="cpdGoalTitle" placeholder="e.g. Master Advanced Differentiation"></div>
+              <div><label>Target date</label><input type="date" id="cpdGoalDate"></div>
+            </div>
+            <label>Notes</label><textarea id="cpdGoalNotes" rows="2" placeholder="Optional notes"></textarea>
+            <button class="btn" id="cpdGoalSave" style="margin-top:12px;">Add goal</button>
+          </div>
+          <h3 style="font-size:16px; margin-top:20px;">Your development goals</h3>
+          ${
+            goals.length === 0
+              ? '<div class="empty">No development goals yet.</div>'
+              : goals
+                  .map(
+                    (g) => `<div class="panel">
+              <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                <div><h3 style="font-size:15px;">${escapeHtml(g.title)}</h3>
+                <p class="muted" style="font-size:12.5px;">Target: ${g.targetDate ? escapeHtml(g.targetDate) : "\u2014"}</p></div>
+                <select class="field" data-goal-status="${g.id}" style="width:auto;">
+                  ${GOAL_STATUSES.map((s) => `<option value="${s}" ${g.status === s ? "selected" : ""}>${s}</option>`).join("")}
+                </select>
+              </div>
+              ${g.notes ? `<p style="margin-top:8px;">${escapeHtml(g.notes)}</p>` : ""}
+              <button class="btn danger small" data-del-cpd-goal="${g.id}" style="margin-top:8px;">Delete</button>
+            </div>`,
+                  )
+                  .join("")
+          }`;
+        main.querySelector("#cpdSave").onclick = () => {
+          const title = main.querySelector("#cpdTitle").value.trim();
+          const hours = Number(main.querySelector("#cpdHours").value) || 0;
+          if (!title || hours <= 0) {
+            alert("Add a title and a positive number of hours.");
+            return;
+          }
+          const all = getCpdEvents();
+          all.push({
+            id: uid("cpdEv"),
+            teacherId: user.id,
+            title,
+            type: main.querySelector("#cpdType").value,
+            date: main.querySelector("#cpdDate").value || todayISO(),
+            hours,
+            certUrl: main.querySelector("#cpdCertUrl").value.trim(),
+            createdAt: new Date().toISOString(),
+          });
+          saveCpdEvents(all);
+          render();
+        };
+        main.querySelectorAll("[data-del-cpd-event]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              if (!confirm("Delete this PD activity?")) return;
+              saveCpdEvents(
+                getCpdEvents().filter((e) => e.id !== b.dataset.delCpdEvent),
+              );
+              render();
+            }),
+        );
+        main.querySelector("#cpdGoalSave").onclick = () => {
+          const title = main.querySelector("#cpdGoalTitle").value.trim();
+          if (!title) {
+            alert("Give the goal a title.");
+            return;
+          }
+          const all = getCpdGoals();
+          all.push({
+            id: uid("cpdGl"),
+            teacherId: user.id,
+            title,
+            targetDate: main.querySelector("#cpdGoalDate").value,
+            status: "not-started",
+            notes: main.querySelector("#cpdGoalNotes").value.trim(),
+            createdAt: new Date().toISOString(),
+          });
+          saveCpdGoals(all);
+          render();
+        };
+        main.querySelectorAll("[data-goal-status]").forEach(
+          (sel) =>
+            (sel.onchange = () => {
+              const all = getCpdGoals();
+              const g = all.find((x) => x.id === sel.dataset.goalStatus);
+              if (g) {
+                g.status = sel.value;
+                saveCpdGoals(all);
+              }
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-del-cpd-goal]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              if (!confirm("Delete this development goal?")) return;
+              saveCpdGoals(
+                getCpdGoals().filter((g) => g.id !== b.dataset.delCpdGoal),
+              );
+              render();
+            }),
+        );
+      }
+
+      /* ---------------- Work-Based Learning (internships / placements / work logs) ---------------- */
+      function renderStudentWorkExperience(main, user) {
+        const internships = getInternships()
+          .slice()
+          .sort((a, b) => (b.postedAt || "").localeCompare(a.postedAt || ""));
+        const myPlacements = getPlacements().filter(
+          (p) => p.studentId === user.id,
+        );
+        const acceptedPlacements = myPlacements.filter(
+          (p) => p.status === "accepted" || p.status === "completed",
+        );
+        const myLogs = getWorkLogs()
+          .filter((l) => l.studentId === user.id)
+          .slice()
+          .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+        const totalHours = myLogs.reduce(
+          (sum, l) => sum + (Number(l.hours) || 0),
+          0,
+        );
+        main.innerHTML = `<div class="eyebrow">Work-Based Learning</div><h2>Work Experience</h2>
+          <div class="stat-row">
+            <div class="stat-card"><div class="num">${myPlacements.length}</div><div class="lbl">Applications</div></div>
+            <div class="stat-card"><div class="num">${acceptedPlacements.length}</div><div class="lbl">Active / completed placements</div></div>
+            <div class="stat-card"><div class="num">${totalHours}</div><div class="lbl">Hours logged</div></div>
+          </div>
+          <h3 style="font-size:16px;">Available internships</h3>
+          ${
+            internships.length === 0
+              ? '<div class="empty">No internship opportunities posted yet.</div>'
+              : internships
+                  .map((i) => {
+                    const applied = myPlacements.find(
+                      (p) => p.internshipId === i.id,
+                    );
+                    return `<div class="panel">
+                <h3 style="font-size:15px;">${escapeHtml(i.title)}</h3>
+                <p class="muted" style="font-size:12.5px;">${escapeHtml(i.organization)}${i.duration ? " \u00b7 " + escapeHtml(i.duration) : ""}</p>
+                ${i.description ? `<p>${escapeHtml(i.description)}</p>` : ""}
+                ${i.contact ? `<p class="muted" style="font-size:12.5px;">Contact: ${escapeHtml(i.contact)}</p>` : ""}
+                ${
+                  applied
+                    ? `<span class="tag ${applied.status === "accepted" || applied.status === "completed" ? "good" : applied.status === "rejected" ? "bad" : "pending"}">${applied.status}</span>`
+                    : `<button class="btn small" data-apply-internship="${i.id}">Apply</button>`
+                }
+              </div>`;
+                  })
+                  .join("")
+          }
+          <h3 style="font-size:16px; margin-top:20px;">Log work hours</h3>
+          ${
+            acceptedPlacements.length === 0
+              ? '<div class="empty">You need an accepted placement before you can log hours.</div>'
+              : `<div class="panel">
+              <div class="grid2">
+                <div><label>Placement</label><select class="field" id="wlPlacement">${acceptedPlacements
+                  .map((p) => {
+                    const i = internships.find((x) => x.id === p.internshipId);
+                    return `<option value="${p.id}">${i ? escapeHtml(i.title) : "Placement"}</option>`;
+                  })
+                  .join("")}</select></div>
+                <div><label>Date</label><input type="date" id="wlDate" value="${todayISO()}"></div>
+              </div>
+              <label>Hours</label><input type="number" id="wlHours" min="0" step="0.5" value="1">
+              <label>Description</label><textarea id="wlDesc" rows="3" placeholder="What did you work on?"></textarea>
+              <button class="btn" id="wlSave" style="margin-top:12px;">Log hours</button>
+            </div>`
+          }
+          <h3 style="font-size:16px; margin-top:20px;">Your work log history</h3>
+          ${
+            myLogs.length === 0
+              ? '<div class="empty">No work logged yet.</div>'
+              : `<div class="panel"><table><thead><tr><th>Date</th><th>Hours</th><th>Description</th></tr></thead><tbody>
+            ${myLogs.map((l) => `<tr><td>${escapeHtml(l.date)}</td><td>${l.hours}</td><td>${escapeHtml(l.description)}</td></tr>`).join("")}
+            </tbody></table></div>`
+          }`;
+        main.querySelectorAll("[data-apply-internship]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const all = getPlacements();
+              all.push({
+                id: uid("plc"),
+                studentId: user.id,
+                internshipId: b.dataset.applyInternship,
+                status: "applied",
+                appliedAt: new Date().toISOString(),
+              });
+              savePlacements(all);
+              render();
+            }),
+        );
+        const wlSave = main.querySelector("#wlSave");
+        if (wlSave) {
+          wlSave.onclick = () => {
+            const placementId = main.querySelector("#wlPlacement").value;
+            const hours = Number(main.querySelector("#wlHours").value) || 0;
+            const description = main.querySelector("#wlDesc").value.trim();
+            if (!placementId || hours <= 0 || !description) {
+              alert("Choose a placement, add hours, and describe the work.");
+              return;
+            }
+            const all = getWorkLogs();
+            all.push({
+              id: uid("wrkL"),
+              studentId: user.id,
+              placementId,
+              date: main.querySelector("#wlDate").value || todayISO(),
+              hours,
+              description,
+              createdAt: new Date().toISOString(),
+            });
+            saveWorkLogs(all);
+            render();
+          };
+        }
+      }
+
+      function renderTeacherWorkExperience(main, user) {
+        const students = getUsers().filter((u) => u.role === "student");
+        const internships = getInternships();
+        const placements = getPlacements()
+          .slice()
+          .sort((a, b) => (b.appliedAt || "").localeCompare(a.appliedAt || ""));
+        const workLogs = getWorkLogs();
+        main.innerHTML = `<div class="eyebrow">Work-Based Learning</div><h2>Work Experience \u2014 Student Monitoring</h2>
+          ${
+            placements.length === 0
+              ? '<div class="empty">No student placements yet.</div>'
+              : placements
+                  .map((p) => {
+                    const s = students.find((x) => x.id === p.studentId);
+                    const i = internships.find((x) => x.id === p.internshipId);
+                    const logs = workLogs
+                      .filter((l) => l.placementId === p.id)
+                      .sort((a, b) =>
+                        (b.date || "").localeCompare(a.date || ""),
+                      );
+                    const hours = logs.reduce(
+                      (sum, l) => sum + (Number(l.hours) || 0),
+                      0,
+                    );
+                    return `<div class="panel">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                  <div><h3 style="font-size:15px;">${s ? escapeHtml(s.name) : "Unknown student"}${s && s.class ? ` \u2014 ${escapeHtml(s.class)}` : ""}</h3>
+                  <p class="muted" style="font-size:12.5px;">${i ? escapeHtml(i.title) : "Unknown internship"} \u00b7 applied ${p.appliedAt ? escapeHtml(p.appliedAt.slice(0, 10)) : "\u2014"}</p></div>
+                  <span class="tag ${p.status === "accepted" || p.status === "completed" ? "good" : p.status === "rejected" ? "bad" : "pending"}">${p.status}</span>
+                </div>
+                <p class="muted" style="font-size:12.5px; margin-top:6px;">${logs.length} log(s) \u00b7 ${hours} hour(s) recorded</p>
+                ${
+                  logs.length === 0
+                    ? ""
+                    : `<table style="margin-top:8px;"><thead><tr><th>Date</th><th>Hours</th><th>Description</th></tr></thead><tbody>
+                  ${logs.map((l) => `<tr><td>${escapeHtml(l.date)}</td><td>${l.hours}</td><td>${escapeHtml(l.description)}</td></tr>`).join("")}
+                  </tbody></table>`
+                }
+              </div>`;
+                  })
+                  .join("")
+          }`;
+      }
+
+      function renderPrincipalWorkExperience(main, user) {
+        const students = getUsers().filter((u) => u.role === "student");
+        const internships = getInternships()
+          .slice()
+          .sort((a, b) => (b.postedAt || "").localeCompare(a.postedAt || ""));
+        const placements = getPlacements()
+          .slice()
+          .sort((a, b) => (b.appliedAt || "").localeCompare(a.appliedAt || ""));
+        main.innerHTML = `<div class="eyebrow">Work-Based Learning</div><h2>Work Experience \u2014 Opportunities & Placements</h2>
+          <div class="panel">
+            <div class="eyebrow">Post an opportunity</div>
+            <div class="grid2">
+              <div><label>Title</label><input type="text" id="intlTitle" placeholder="e.g. Junior ICT Specialist"></div>
+              <div><label>Organization</label><input type="text" id="intlOrg" placeholder="e.g. Ministry of Education"></div>
+            </div>
+            <div class="grid2">
+              <div><label>Duration</label><input type="text" id="intlDuration" placeholder="e.g. 3 months, June\u2013August"></div>
+              <div><label>Contact</label><input type="text" id="intlContact" placeholder="contact@org.org"></div>
+            </div>
+            <label>Description</label><textarea id="intlDesc" rows="3" placeholder="What the intern will do"></textarea>
+            <button class="btn" id="intlSave" style="margin-top:12px;">Post opportunity</button>
+          </div>
+          <h3 style="font-size:16px; margin-top:20px;">Posted opportunities</h3>
+          ${
+            internships.length === 0
+              ? '<div class="empty">No opportunities posted yet.</div>'
+              : internships
+                  .map(
+                    (i) => `<div class="panel">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div><h3 style="font-size:15px;">${escapeHtml(i.title)}</h3><p class="muted" style="font-size:12.5px;">${escapeHtml(i.organization)}${i.duration ? " \u00b7 " + escapeHtml(i.duration) : ""}</p></div>
+                <button class="btn danger small" data-del-internship="${i.id}">Delete</button>
+              </div>
+            </div>`,
+                  )
+                  .join("")
+          }
+          <h3 style="font-size:16px; margin-top:20px;">Applications</h3>
+          ${
+            placements.length === 0
+              ? '<div class="empty">No applications yet.</div>'
+              : placements
+                  .map((p) => {
+                    const s = students.find((x) => x.id === p.studentId);
+                    const i = internships.find((x) => x.id === p.internshipId);
+                    return `<div class="panel">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                  <div><h3 style="font-size:15px;">${s ? escapeHtml(s.name) : "Unknown student"}</h3>
+                  <p class="muted" style="font-size:12.5px;">${i ? escapeHtml(i.title) : "Unknown opportunity"}</p></div>
+                  <span class="tag ${p.status === "accepted" || p.status === "completed" ? "good" : p.status === "rejected" ? "bad" : "pending"}">${p.status}</span>
+                </div>
+                ${p.status === "applied" ? `<button class="btn small" data-accept-plc="${p.id}">Accept</button> <button class="btn danger small" data-reject-plc="${p.id}">Reject</button>` : ""}
+                ${p.status === "accepted" ? `<button class="btn small" data-complete-plc="${p.id}">Mark Completed</button>` : ""}
+              </div>`;
+                  })
+                  .join("")
+          }`;
+        main.querySelector("#intlSave").onclick = () => {
+          const title = main.querySelector("#intlTitle").value.trim();
+          const organization = main.querySelector("#intlOrg").value.trim();
+          if (!title || !organization) {
+            alert("Add a title and organization.");
+            return;
+          }
+          const all = getInternships();
+          all.push({
+            id: uid("intl"),
+            title,
+            organization,
+            duration: main.querySelector("#intlDuration").value.trim(),
+            description: main.querySelector("#intlDesc").value.trim(),
+            contact: main.querySelector("#intlContact").value.trim(),
+            postedBy: user.id,
+            postedAt: new Date().toISOString(),
+          });
+          saveInternships(all);
+          render();
+        };
+        main.querySelectorAll("[data-del-internship]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              if (
+                !confirm(
+                  "Delete this opportunity? Existing applications will remain on record.",
+                )
+              )
+                return;
+              saveInternships(
+                getInternships().filter(
+                  (i) => i.id !== b.dataset.delInternship,
+                ),
+              );
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-accept-plc]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const all = getPlacements();
+              const p = all.find((x) => x.id === b.dataset.acceptPlc);
+              if (p) {
+                p.status = "accepted";
+                savePlacements(all);
+              }
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-reject-plc]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const all = getPlacements();
+              const p = all.find((x) => x.id === b.dataset.rejectPlc);
+              if (p) {
+                p.status = "rejected";
+                savePlacements(all);
+              }
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-complete-plc]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const all = getPlacements();
+              const p = all.find((x) => x.id === b.dataset.completePlc);
+              if (p) {
+                p.status = "completed";
+                savePlacements(all);
+              }
+              render();
+            }),
+        );
+      }
+
+      /* ---------------- External Exam Board Integration ---------------- */
+      function renderExamBoard(main, user) {
+        const students = getUsers().filter((u) => u.role === "student");
+        const registrations = getExamRegistrations()
+          .slice()
+          .sort((a, b) =>
+            (b.registeredAt || "").localeCompare(a.registeredAt || ""),
+          );
+        const results = getExamResults();
+        main.innerHTML = `<div class="eyebrow">External Examinations</div><h2>Exam Board</h2>
+          <div class="panel">
+            <div class="eyebrow">Register a student</div>
+            <div class="grid2">
+              <div><label>Student</label><select class="field" id="exmStudent">${students.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}${s.class ? " \u2014 " + escapeHtml(s.class) : ""}</option>`).join("")}</select></div>
+              <div><label>Exam board</label><input type="text" id="exmBoard" placeholder="e.g. CAIE"></div>
+            </div>
+            <div class="grid2">
+              <div><label>Candidate number</label><input type="text" id="exmCandidate" placeholder="e.g. EX123456"></div>
+              <div><label>Subjects</label><input type="text" id="exmSubjects" placeholder="Comma-separated, e.g. Mathematics, Physics"></div>
+            </div>
+            <button class="btn" id="exmRegSave" style="margin-top:12px;">Register student</button>
+          </div>
+          <h3 style="font-size:16px; margin-top:20px;">Registrations</h3>
+          ${
+            registrations.length === 0
+              ? '<div class="empty">No students registered yet.</div>'
+              : registrations
+                  .map((r) => {
+                    const s = students.find((x) => x.id === r.studentId);
+                    const myResults = results.filter(
+                      (x) => x.registrationId === r.id,
+                    );
+                    return `<div class="panel">
+                <h3 style="font-size:15px;">${s ? escapeHtml(s.name) : "Unknown student"}</h3>
+                <p class="muted" style="font-size:12.5px;">${escapeHtml(r.boardName)} \u00b7 Candidate ${r.candidateNumber ? escapeHtml(r.candidateNumber) : "\u2014"} \u00b7 ${(r.subjects || []).map((sub) => escapeHtml(sub)).join(", ")}</p>
+                <div class="grid2" style="margin-top:8px;">
+                  <div><label>Subject</label><select class="field" data-result-subject="${r.id}">${(r.subjects || []).map((sub) => `<option>${escapeHtml(sub)}</option>`).join("")}</select></div>
+                  <div><label>Grade</label><input type="text" data-result-grade="${r.id}" placeholder="e.g. A"></div>
+                </div>
+                <div class="grid2">
+                  <div><label>Score</label><input type="number" data-result-score="${r.id}" placeholder="e.g. 92"></div>
+                  <div><label>&nbsp;</label><button class="btn small" data-record-result="${r.id}" style="width:100%;">Record result</button></div>
+                </div>
+                ${
+                  myResults.length === 0
+                    ? ""
+                    : `<table style="margin-top:10px;"><thead><tr><th>Subject</th><th>Grade</th><th>Score</th><th>Verification</th></tr></thead><tbody>
+                  ${myResults.map((res) => `<tr><td>${escapeHtml(res.subject)}</td><td>${escapeHtml(res.grade)}</td><td>${res.score}</td><td><code>${escapeHtml(res.verificationCode)}</code></td></tr>`).join("")}
+                  </tbody></table>`
+                }
+              </div>`;
+                  })
+                  .join("")
+          }
+          <div class="panel" style="margin-top:20px;">
+            <div class="eyebrow">Verify a result</div>
+            <label>Verification code</label><input type="text" id="exmVerifyCode" placeholder="ABCD-1234">
+            <button class="btn" id="exmVerifyBtn" style="margin-top:10px;">Check</button>
+            <div id="exmVerifyOut" style="margin-top:10px;"></div>
+          </div>`;
+        main.querySelector("#exmRegSave").onclick = () => {
+          const studentId = main.querySelector("#exmStudent").value;
+          const boardName = main.querySelector("#exmBoard").value.trim();
+          const candidateNumber = main
+            .querySelector("#exmCandidate")
+            .value.trim();
+          const subjects = main
+            .querySelector("#exmSubjects")
+            .value.split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (!studentId || !boardName || subjects.length === 0) {
+            alert("Select a student, board, and at least one subject.");
+            return;
+          }
+          const all = getExamRegistrations();
+          all.push({
+            id: uid("exmR"),
+            studentId,
+            boardName,
+            candidateNumber,
+            subjects,
+            registeredAt: new Date().toISOString(),
+          });
+          saveExamRegistrations(all);
+          render();
+        };
+        main.querySelectorAll("[data-record-result]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const regId = b.dataset.recordResult;
+              const reg = getExamRegistrations().find((r) => r.id === regId);
+              if (!reg) return;
+              const subject = main.querySelector(
+                `[data-result-subject="${regId}"]`,
+              ).value;
+              const grade = main
+                .querySelector(`[data-result-grade="${regId}"]`)
+                .value.trim();
+              const score = Number(
+                main.querySelector(`[data-result-score="${regId}"]`).value,
+              );
+              if (!grade || !Number.isFinite(score)) {
+                alert("Enter a grade and a numeric score.");
+                return;
+              }
+              const all = getExamResults();
+              const result = {
+                id: uid("exmRs"),
+                registrationId: regId,
+                studentId: reg.studentId,
+                subject,
+                grade,
+                score,
+                issuedAt: new Date().toISOString(),
+              };
+              result.verificationCode = examVerificationCode(result);
+              all.push(result);
+              saveExamResults(all);
+              render();
+            }),
+        );
+        main.querySelector("#exmVerifyBtn").onclick = () => {
+          const code = main
+            .querySelector("#exmVerifyCode")
+            .value.trim()
+            .toUpperCase();
+          const out = main.querySelector("#exmVerifyOut");
+          const match = getExamResults().find(
+            (r) => r.verificationCode === code,
+          );
+          if (!match) {
+            out.innerHTML =
+              '<span class="tag bad">No matching result found</span>';
+            return;
+          }
+          const recomputed = examVerificationCode(match);
+          if (recomputed !== match.verificationCode) {
+            out.innerHTML =
+              '<span class="tag bad">Record has been altered since issue</span>';
+            return;
+          }
+          const s = students.find((x) => x.id === match.studentId);
+          out.innerHTML = `<span class="tag good">Verified</span> ${s ? escapeHtml(s.name) : "Unknown student"} \u2014 ${escapeHtml(match.subject)}: ${escapeHtml(match.grade)} (${match.score})`;
+        };
       }
 
       /* ---------------- MOODLE-STYLE COURSE (sections + linked resources/activities) ----------------
@@ -24501,17 +26782,23 @@
         }
 
         main.innerHTML = `<div class="eyebrow">Private messages</div><h2>Messages</h2>
-          <div class="panel" style="display:flex; gap:0; padding:0; overflow:hidden;">
-            <div style="width:220px; border-right:1px solid var(--rule); flex-shrink:0;">
+          <div class="panel split-panel" style="display:flex; gap:0; padding:0; overflow:hidden;">
+            <div class="split-panel-side" style="width:220px; border-right:1px solid var(--rule); flex-shrink:0;">
               <div id="convList"></div>
             </div>
-            <div style="flex:1; padding:16px; min-width:0;">
-              <div id="threadHead" style="font-weight:600; margin-bottom:10px;"></div>
+            <div class="split-panel-main" style="flex:1; padding:16px; min-width:0;">
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                <div id="threadHead" style="font-weight:600;"></div>
+                <button type="button" class="btn secondary small" id="chatWallpaperBtn" title="Change chat wallpaper">🎨 <span class="owner-btn-full">Wallpaper</span></button>
+              </div>
               <div id="msgThread" style="max-height:320px; overflow-y:auto;"></div>
               <textarea id="msgBox" placeholder="Write a message..." style="margin-top:10px;"></textarea>
               <button class="btn small" id="msgSend" style="margin-top:8px;">Send</button>
             </div>
           </div>`;
+
+        main.querySelector("#chatWallpaperBtn").onclick = () =>
+          openWallpaperModal(user.id);
 
         const convListEl = main.querySelector("#convList");
         if (partners.length === 0) {
@@ -24561,6 +26848,7 @@
                   .join("");
           threadEl.scrollTop = threadEl.scrollHeight;
         }
+        applyChatWallpaper(threadEl, user.id);
 
         main.querySelector("#msgSend").onclick = () => {
           if (!partner) {
@@ -25622,11 +27910,11 @@
           </div>`
               : ""
           }
-          <div class="panel" style="display:flex; gap:0; padding:0; overflow:hidden;">
-            <div style="width:220px; border-right:1px solid var(--rule); flex-shrink:0;">
+          <div class="panel split-panel" style="display:flex; gap:0; padding:0; overflow:hidden;">
+            <div class="split-panel-side" style="width:220px; border-right:1px solid var(--rule); flex-shrink:0;">
               <div id="roomList"></div>
             </div>
-            <div style="flex:1; padding:16px; min-width:0;">
+            <div class="split-panel-main" style="flex:1; padding:16px; min-width:0;">
               <div id="roomHead"></div>
               <div id="roomThread" style="max-height:320px; overflow-y:auto; margin-top:8px;"></div>
               <div id="roomComposer"></div>
@@ -25770,8 +28058,13 @@
         const memberUsers = (room.memberIds || [])
           .map((id) => getUsers().find((u) => u.id === id))
           .filter(Boolean);
-        headEl.innerHTML = `<div style="font-weight:600;">${room.name}${room.deptScope ? ` <span class="tag scheduled" style="font-weight:400;">${escapeHtml(room.deptScope)}</span>` : ""}</div>
-          <div class="muted" style="font-size:12px; margin-top:2px;">Started by ${room.ownerName} · ${memberUsers.map((m) => m.name).join(", ") || "no members yet"}</div>
+        headEl.innerHTML = `<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
+            <div>
+              <div style="font-weight:600;">${room.name}${room.deptScope ? ` <span class="tag scheduled" style="font-weight:400;">${escapeHtml(room.deptScope)}</span>` : ""}</div>
+              <div class="muted" style="font-size:12px; margin-top:2px;">Started by ${room.ownerName} · ${memberUsers.map((m) => m.name).join(", ") || "no members yet"}</div>
+            </div>
+            <button type="button" class="btn secondary small" id="roomWallpaperBtn" title="Change chat wallpaper" style="flex-shrink:0;">🎨 <span class="owner-btn-full">Wallpaper</span></button>
+          </div>
           ${
             isOwner
               ? `<button class="btn secondary small" id="roomManageBtn" style="margin-top:6px;">${roomsState.showAddMembers ? "Done" : "Add members"}</button>
@@ -25785,6 +28078,8 @@
             <button class="btn small" id="roomAddSaveBtn" style="margin-top:8px;">Save members</button>`
               : ""
           }`;
+        headEl.querySelector("#roomWallpaperBtn").onclick = () =>
+          openWallpaperModal(user.id);
 
         if (isOwner && room.deptScope) {
           const syncBtn = main.querySelector("#roomSyncDeptBtn");
@@ -25893,6 +28188,7 @@
                 )
                 .join("");
         threadEl.scrollTop = threadEl.scrollHeight;
+        applyChatWallpaper(threadEl, user.id);
 
         const isMember = isOwner || (room.memberIds || []).includes(user.id);
         composerEl.innerHTML = isMember
@@ -26493,6 +28789,168 @@
         );
       }
 
+      /* ---- DEAN: Cross-Campus Faculty Report ----
+                 Rolls programmes, enrolment, lecturers and approved results up
+                 by faculty across every campus (UNESWA_CAMPUSES), then breaks
+                 each faculty back down campus-by-campus. Marks/pass-rate figures
+                 only ever come from APPROVED result batches — same rule as
+                 Senate Approvals and student transcripts, so this report can
+                 never show a Dean a mark before Senate has ratified it. */
+      function render_principal_facultyReport(main, user) {
+        const programmes = getProgrammes();
+        const students = getUsers().filter((u) => u.role === "student");
+        const modules = getTModules();
+        const approvedBatches = getResultBatches().filter(
+          (b) => b.status === "approved",
+        );
+        const regs = getRegistrations();
+
+        const faculties = Array.from(
+          new Set(programmes.map((p) => p.faculty || "Unassigned Faculty")),
+        ).sort();
+        const campuses = Array.from(
+          new Set(programmes.map((p) => p.campus || "Unspecified Campus")),
+        ).sort();
+
+        // Pre-index approved marks per module so per-faculty/campus rollups
+        // don't re-scan every registration for every programme.
+        const approvedMarksByModule = {};
+        approvedBatches.forEach((b) => {
+          const list = tRegsFor(b.moduleId, b.academicYear, b.semester);
+          (approvedMarksByModule[b.moduleId] =
+            approvedMarksByModule[b.moduleId] || []).push(...list);
+        });
+
+        function statsFor(progList) {
+          const progIds = new Set(progList.map((p) => p.id));
+          const studentCount = students.filter(
+            (s) => s.programmeId && progIds.has(s.programmeId),
+          ).length;
+          const mods = modules.filter((m) => progIds.has(m.programmeId));
+          const lecturerCount = new Set(
+            mods.filter((m) => m.lecturerId).map((m) => m.lecturerId),
+          ).size;
+          const allRegs = mods.flatMap(
+            (m) => approvedMarksByModule[m.id] || [],
+          );
+          const marks = allRegs
+            .map((r) => Number(r.mark))
+            .filter((n) => Number.isFinite(n));
+          const avgMark = marks.length
+            ? Math.round(
+                (marks.reduce((a, n) => a + n, 0) / marks.length) * 10,
+              ) / 10
+            : null;
+          const passCount = allRegs.filter((r) => {
+            const g = gradeForMark(r.mark);
+            return g && g.symbol !== "F";
+          }).length;
+          const passRate = allRegs.length
+            ? Math.round((passCount / allRegs.length) * 100)
+            : null;
+          const dpGranted = allRegs.filter(
+            (r) => r.dpStatus === "granted",
+          ).length;
+          const dpRefused = allRegs.filter(
+            (r) => r.dpStatus === "refused",
+          ).length;
+          return {
+            programmeCount: progList.length,
+            studentCount,
+            lecturerCount,
+            resultCount: allRegs.length,
+            avgMark,
+            passRate,
+            dpGranted,
+            dpRefused,
+          };
+        }
+
+        const overall = statsFor(programmes);
+
+        main.innerHTML = `<div class="eyebrow">Dean's Office \u00b7 All Campuses</div><h2>Cross-Campus Faculty Report</h2>
+          <p class="muted">Faculty performance rolled up across ${campuses.length} campus(es): ${campuses.map((c) => escapeHtml(c)).join(", ")}. Marks and pass rates reflect Senate-approved results only.</p>
+          <div class="stat-row">
+            <div class="stat-card"><div class="num">${faculties.length}</div><div class="lbl">Faculties</div></div>
+            <div class="stat-card"><div class="num">${overall.programmeCount}</div><div class="lbl">Programmes</div></div>
+            <div class="stat-card"><div class="num">${overall.studentCount}</div><div class="lbl">Students enrolled</div></div>
+            <div class="stat-card"><div class="num">${overall.lecturerCount}</div><div class="lbl">Lecturers</div></div>
+            <div class="stat-card"><div class="num">${overall.passRate != null ? overall.passRate + "%" : "\u2014"}</div><div class="lbl">Institution pass rate</div></div>
+          </div>
+          <div style="margin:14px 0;"><button class="btn secondary small" id="facRepExport">Export faculty summary (CSV)</button></div>
+          ${faculties
+            .map((f) => {
+              const facProgs = programmes.filter(
+                (p) => (p.faculty || "Unassigned Faculty") === f,
+              );
+              const fs = statsFor(facProgs);
+              const facCampuses = Array.from(
+                new Set(facProgs.map((p) => p.campus || "Unspecified Campus")),
+              ).sort();
+              return `<div class="panel" style="margin-top:14px;">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                  <h3 style="font-size:16px;">${escapeHtml(f)}</h3>
+                  <span class="tag ${fs.passRate == null ? "pending" : fs.passRate >= 50 ? "good" : "bad"}">${fs.passRate != null ? fs.passRate + "% pass rate" : "No approved results yet"}</span>
+                </div>
+                <p class="muted" style="font-size:12.5px;">${facCampuses.length} campus(es): ${facCampuses.map((c) => escapeHtml(c)).join(", ")} \u00b7 ${fs.programmeCount} programme(s) \u00b7 ${fs.studentCount} student(s) \u00b7 ${fs.lecturerCount} lecturer(s)</p>
+                ${
+                  fs.resultCount
+                    ? `<p style="font-size:12.5px; margin-top:4px;">Class average: <strong>${fs.avgMark != null ? fs.avgMark : "\u2014"}</strong> \u00b7 DP granted: ${fs.dpGranted} \u00b7 DP refused: ${fs.dpRefused} \u00b7 ${fs.resultCount} approved result(s)</p>`
+                    : ""
+                }
+                <table style="margin-top:10px;"><thead><tr><th>Campus</th><th>Programmes</th><th>Students</th><th>Lecturers</th><th>Pass rate</th></tr></thead><tbody>
+                  ${facCampuses
+                    .map((c) => {
+                      const cProgs = facProgs.filter(
+                        (p) => (p.campus || "Unspecified Campus") === c,
+                      );
+                      const cs = statsFor(cProgs);
+                      return `<tr><td>${escapeHtml(c)}</td><td>${cs.programmeCount}</td><td>${cs.studentCount}</td><td>${cs.lecturerCount}</td><td>${cs.passRate != null ? cs.passRate + "%" : "\u2014"}</td></tr>`;
+                    })
+                    .join("")}
+                </tbody></table>
+              </div>`;
+            })
+            .join("")}`;
+
+        main.querySelector("#facRepExport").onclick = () => {
+          const headers = [
+            "Faculty",
+            "Campuses",
+            "Programmes",
+            "Students",
+            "Lecturers",
+            "Approved Results",
+            "Class Average",
+            "Pass Rate %",
+            "DP Granted",
+            "DP Refused",
+          ];
+          const rows = faculties.map((f) => {
+            const facProgs = programmes.filter(
+              (p) => (p.faculty || "Unassigned Faculty") === f,
+            );
+            const fs = statsFor(facProgs);
+            const facCampuses = Array.from(
+              new Set(facProgs.map((p) => p.campus || "Unspecified Campus")),
+            ).sort();
+            return [
+              f,
+              facCampuses.join("; "),
+              fs.programmeCount,
+              fs.studentCount,
+              fs.lecturerCount,
+              fs.resultCount,
+              fs.avgMark != null ? fs.avgMark : "",
+              fs.passRate != null ? fs.passRate : "",
+              fs.dpGranted,
+              fs.dpRefused,
+            ];
+          });
+          downloadCSV("cross-campus-faculty-report.csv", headers, rows);
+        };
+      }
+
       /* ---- DEAN: Programmes & Modules ---- */
       function render_principal_programmes(main, user) {
         const programmes = getProgrammes();
@@ -27024,6 +29482,538 @@
               render();
             }),
         );
+      }
+
+      /* ---------------- Scholarship Management (Registrar's Office) ----------------
+                 Full lifecycle: Registrar defines a scholarship programme with its own
+                 custom application form (parsed from simple "Label | type" lines —
+                 type is one of text/textarea/number/date/select, with select options
+                 given as "Label | select | OptionA, OptionB"), students apply from
+                 render_student_scholarships below, the Registrar scores and moves each
+                 application through Submitted → Under Review → Shortlisted/Waitlisted →
+                 Awarded/Rejected, and logs disbursements (part-payments or a single
+                 lump sum) against each Awarded application. Everything is per-school
+                 data via the normal DB.set/DB.setRecord path, same as every other
+                 module here. */
+      function scholarshipStatusClass(s) {
+        const v = String(s || "").toLowerCase();
+        if (v === "awarded") return "good";
+        if (v === "rejected") return "bad";
+        return "pending";
+      }
+      function parseScholarshipFieldLines(text) {
+        return arr(String(text || "").split("\n"))
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line, i) => {
+            const parts = line.split("|").map((p) => p.trim());
+            const label = parts[0];
+            let type = (parts[1] || "text").toLowerCase();
+            if (
+              !["text", "textarea", "number", "date", "select"].includes(type)
+            )
+              type = "text";
+            const options =
+              type === "select"
+                ? arr((parts[2] || "").split(","))
+                    .map((o) => o.trim())
+                    .filter(Boolean)
+                : [];
+            return { id: `f${i + 1}`, label, type, options, required: true };
+          })
+          .filter((f) => f.label);
+      }
+      function scholarshipFieldsToLines(fields) {
+        return arr(fields)
+          .map((f) =>
+            f.type === "select"
+              ? `${f.label} | select | ${f.options.join(", ")}`
+              : `${f.label} | ${f.type}`,
+          )
+          .join("\n");
+      }
+      let scholarshipAdminState = { openId: null };
+      function render_admin_scholarships(main, user) {
+        const scholarships = getScholarships()
+          .slice()
+          .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+        const allApps = getScholarshipApplications();
+        const appsFor = (schId) =>
+          allApps.filter((a) => a.scholarshipId === schId);
+        const open = scholarshipAdminState.openId
+          ? scholarships.find((s) => s.id === scholarshipAdminState.openId)
+          : null;
+
+        const totalAwarded = allApps.filter(
+          (a) => a.status === "Awarded",
+        ).length;
+        const totalDisbursed = allApps.reduce(
+          (sum, a) =>
+            sum +
+            arr(a.disbursements).reduce(
+              (s2, d) => s2 + (Number(d.amount) || 0),
+              0,
+            ),
+          0,
+        );
+
+        main.innerHTML = `<div class="eyebrow">Registrar's Office</div><h2>Scholarship Management</h2>
+          <div class="stat-row">
+            <div class="stat-card"><div class="num">${scholarships.length}</div><div class="lbl">Scholarship programmes</div></div>
+            <div class="stat-card"><div class="num">${allApps.length}</div><div class="lbl">Applications received</div></div>
+            <div class="stat-card"><div class="num">${totalAwarded}</div><div class="lbl">Students awarded</div></div>
+            <div class="stat-card"><div class="num">${totalDisbursed.toLocaleString()}</div><div class="lbl">Total disbursed</div></div>
+          </div>
+          <div class="panel" style="margin-top:16px;">
+            <div class="eyebrow">New scholarship programme</div>
+            <div class="grid2">
+              <div><label>Name</label><input type="text" id="schName" placeholder="e.g. Vice-Chancellor's Merit Scholarship"></div>
+              <div><label>Award amount</label><input type="number" id="schAmount" placeholder="e.g. 5000"></div>
+            </div>
+            <div class="grid2">
+              <div><label>Application deadline</label><input type="date" id="schDeadline"></div>
+              <div><label>Number of awards available</label><input type="number" id="schSlots" placeholder="e.g. 5"></div>
+            </div>
+            <div style="margin-top:10px;"><label>Description</label><textarea id="schDesc" rows="2" placeholder="What this scholarship is for…"></textarea></div>
+            <div style="margin-top:10px;"><label>Eligibility criteria</label><textarea id="schCriteria" rows="2" placeholder="e.g. Full-time undergraduate, CGPA 3.0+, financial need…"></textarea></div>
+            <div style="margin-top:10px;">
+              <label>Custom application form fields — one per line: <code>Label | type</code> (type: text, textarea, number, date, select). For select, add options: <code>Label | select | Option A, Option B</code></label>
+              <textarea id="schFields" rows="4" placeholder="Motivation statement | textarea
+Current CGPA | number
+Household income bracket | select | Low, Middle, High
+Supporting documents reference | text"></textarea>
+            </div>
+            <button class="btn" id="schCreate" style="margin-top:14px;">Create scholarship</button>
+          </div>
+          <h3 style="font-size:16px; margin-top:24px;">Scholarship programmes</h3>
+          ${
+            scholarships.length === 0
+              ? '<div class="empty">No scholarship programmes yet.</div>'
+              : scholarships
+                  .map((s) => {
+                    const apps = appsFor(s.id);
+                    const awarded = apps.filter(
+                      (a) => a.status === "Awarded",
+                    ).length;
+                    return `<div class="panel" style="margin-top:12px;">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                  <div>
+                    <strong>${escapeHtml(s.name)}</strong>
+                    <div class="muted" style="font-size:12.5px;">${s.amount ? Number(s.amount).toLocaleString() + " award" : "Amount not set"} · ${awarded}/${s.slots || "\u2014"} awarded · Deadline: ${s.deadline || "\u2014"}</div>
+                  </div>
+                  <div style="display:flex; gap:8px;">
+                    <span class="tag ${s.status === "closed" ? "bad" : "good"}">${s.status === "closed" ? "Closed" : "Open"}</span>
+                    <button class="btn secondary small" data-sch-toggle="${s.id}">${s.status === "closed" ? "Reopen" : "Close"}</button>
+                    <button class="btn secondary small" data-sch-open="${s.id}">${open && open.id === s.id ? "Hide" : "Review applications"} (${apps.length})</button>
+                    <button class="btn danger small" data-sch-del="${s.id}">Delete</button>
+                  </div>
+                </div>
+                ${open && open.id === s.id ? renderScholarshipApplicationsPanel(s, apps) : ""}
+              </div>`;
+                  })
+                  .join("")
+          }`;
+
+        main.querySelector("#schCreate").onclick = () => {
+          const name = main.querySelector("#schName").value.trim();
+          const amount = Number(main.querySelector("#schAmount").value) || 0;
+          const deadline = main.querySelector("#schDeadline").value;
+          const slots = Number(main.querySelector("#schSlots").value) || 0;
+          const description = main.querySelector("#schDesc").value.trim();
+          const criteria = main.querySelector("#schCriteria").value.trim();
+          const fields = parseScholarshipFieldLines(
+            main.querySelector("#schFields").value,
+          );
+          if (!name) {
+            alert("Give the scholarship a name.");
+            return;
+          }
+          const all = getScholarships();
+          all.push({
+            id: uid("sch"),
+            name,
+            amount,
+            deadline,
+            slots,
+            description,
+            criteria,
+            fields,
+            status: "open",
+            createdAt: new Date().toISOString(),
+            createdBy: user.name,
+          });
+          saveScholarships(all);
+          render();
+        };
+        main.querySelectorAll("[data-sch-toggle]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const all = getScholarships();
+              const s = all.find((x) => x.id === b.dataset.schToggle);
+              if (s) s.status = s.status === "closed" ? "open" : "closed";
+              saveScholarships(all);
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-sch-open]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const id = b.dataset.schOpen;
+              scholarshipAdminState.openId =
+                scholarshipAdminState.openId === id ? null : id;
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-sch-del]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              if (
+                !confirm(
+                  "Delete this scholarship programme? Its applications will remain on record but can no longer be reviewed here.",
+                )
+              )
+                return;
+              const all = getScholarships().filter(
+                (x) => x.id !== b.dataset.schDel,
+              );
+              saveScholarships(all);
+              render();
+            }),
+        );
+        wireScholarshipApplicationsPanel(main);
+      }
+
+      function renderScholarshipApplicationsPanel(s, apps) {
+        const sorted = apps.slice().sort((a, b) => {
+          const sa = Number(a.score);
+          const sb = Number(b.score);
+          if (Number.isFinite(sb) && Number.isFinite(sa) && sb !== sa)
+            return sb - sa;
+          return (b.submittedAt || "").localeCompare(a.submittedAt || "");
+        });
+        return `<div style="margin-top:14px; border-top:1px solid var(--rule); padding-top:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="eyebrow">Applications</div>
+            <button class="btn secondary small" data-sch-export="${s.id}">Export (CSV)</button>
+          </div>
+          ${
+            sorted.length === 0
+              ? '<div class="empty">No applications yet.</div>'
+              : sorted
+                  .map(
+                    (a) => `<div class="panel" style="margin-top:10px;">
+              <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                <div>
+                  <strong>${escapeHtml(a.studentName)}</strong>
+                  <span class="muted" style="font-size:12px;"> · ${escapeHtml(a.studentNumber || "")}</span><br>
+                  <span class="muted" style="font-size:12px;">Submitted ${(a.submittedAt || "").slice(0, 10)}</span>
+                </div>
+                <span class="tag ${scholarshipStatusClass(a.status)}">${escapeHtml(a.status || "Submitted")}</span>
+              </div>
+              <div style="margin-top:8px; font-size:12.5px;">
+                ${arr(s.fields)
+                  .map(
+                    (f) =>
+                      `<div style="margin-top:4px;"><strong>${escapeHtml(f.label)}:</strong> ${escapeHtml(String((a.answers && a.answers[f.id]) || "\u2014"))}</div>`,
+                  )
+                  .join("")}
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; border-top:1px solid var(--rule); padding-top:10px;">
+                <label style="margin:0; font-size:12.5px;">Score:</label>
+                <input type="number" class="field" data-sch-score="${a.id}" value="${a.score != null ? a.score : ""}" style="width:70px; padding:4px 6px; font-size:12.5px;">
+                <label style="margin:0; font-size:12.5px;">Status:</label>
+                <select class="field" data-sch-status="${a.id}" style="padding:4px 6px; font-size:12.5px;">
+                  ${[
+                    "Submitted",
+                    "Under Review",
+                    "Shortlisted",
+                    "Waitlisted",
+                    "Awarded",
+                    "Rejected",
+                  ]
+                    .map(
+                      (opt) =>
+                        `<option value="${opt}" ${a.status === opt ? "selected" : ""}>${opt}</option>`,
+                    )
+                    .join("")}
+                </select>
+                <button class="btn small" data-sch-savescore="${a.id}">Save</button>
+              </div>
+              ${
+                a.status === "Awarded"
+                  ? `<div style="margin-top:10px; border-top:1px solid var(--rule); padding-top:10px;">
+                <div class="eyebrow">Disbursements ${a.awardedAmount ? "— awarded " + Number(a.awardedAmount).toLocaleString() : ""}</div>
+                ${
+                  arr(a.disbursements).length === 0
+                    ? '<div class="muted" style="font-size:12px;">No payments logged yet.</div>'
+                    : `<table style="margin-top:6px;"><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th></tr></thead><tbody>
+                  ${arr(a.disbursements)
+                    .map(
+                      (d) =>
+                        `<tr><td>${escapeHtml(d.date || "")}</td><td>${Number(d.amount || 0).toLocaleString()}</td><td>${escapeHtml(d.method || "")}</td><td>${escapeHtml(d.reference || "")}</td></tr>`,
+                    )
+                    .join("")}
+                  </tbody></table>`
+                }
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                  <input type="date" class="field" data-disb-date="${a.id}" style="padding:4px 6px; font-size:12.5px;">
+                  <input type="number" class="field" data-disb-amount="${a.id}" placeholder="Amount" style="width:90px; padding:4px 6px; font-size:12.5px;">
+                  <input type="text" class="field" data-disb-method="${a.id}" placeholder="Method (e.g. Bank transfer)" style="width:150px; padding:4px 6px; font-size:12.5px;">
+                  <input type="text" class="field" data-disb-ref="${a.id}" placeholder="Reference" style="width:110px; padding:4px 6px; font-size:12.5px;">
+                  <button class="btn secondary small" data-disb-add="${a.id}">Log payment</button>
+                </div>
+              </div>`
+                  : ""
+              }
+            </div>`,
+                  )
+                  .join("")
+          }
+        </div>`;
+      }
+
+      function wireScholarshipApplicationsPanel(main) {
+        main.querySelectorAll("[data-sch-savescore]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const id = b.dataset.schSavescore;
+              const scoreInput = main.querySelector(`[data-sch-score="${id}"]`);
+              const statusSelect = main.querySelector(
+                `[data-sch-status="${id}"]`,
+              );
+              const all = getScholarshipApplications();
+              const a = all.find((x) => x.id === id);
+              if (!a) return;
+              const score = scoreInput.value.trim();
+              a.score = score === "" ? null : Number(score);
+              const prevStatus = a.status;
+              a.status = statusSelect.value;
+              a.scoredAt = new Date().toISOString();
+              if (a.status === "Awarded" && prevStatus !== "Awarded") {
+                const sch = getScholarships().find(
+                  (s) => s.id === a.scholarshipId,
+                );
+                a.awardedAmount = sch ? sch.amount : a.awardedAmount || 0;
+                a.decidedAt = new Date().toISOString();
+              }
+              if (
+                (a.status === "Rejected" || a.status === "Waitlisted") &&
+                prevStatus !== a.status
+              ) {
+                a.decidedAt = new Date().toISOString();
+              }
+              saveScholarshipApplications(all);
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-disb-add]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const id = b.dataset.disbAdd;
+              const date = main.querySelector(`[data-disb-date="${id}"]`).value;
+              const amount = Number(
+                main.querySelector(`[data-disb-amount="${id}"]`).value,
+              );
+              const method = main
+                .querySelector(`[data-disb-method="${id}"]`)
+                .value.trim();
+              const reference = main
+                .querySelector(`[data-disb-ref="${id}"]`)
+                .value.trim();
+              if (!amount) {
+                alert("Enter a payment amount.");
+                return;
+              }
+              const all = getScholarshipApplications();
+              const a = all.find((x) => x.id === id);
+              if (!a) return;
+              a.disbursements = arr(a.disbursements);
+              a.disbursements.push({
+                id: uid("disb"),
+                date: date || new Date().toISOString().slice(0, 10),
+                amount,
+                method: method || "Not specified",
+                reference,
+                loggedBy:
+                  (getCurrentUser() && getCurrentUser().name) || "Registrar",
+                loggedAt: new Date().toISOString(),
+              });
+              saveScholarshipApplications(all);
+              render();
+            }),
+        );
+        main.querySelectorAll("[data-sch-export]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const schId = b.dataset.schExport;
+              const sch = getScholarships().find((x) => x.id === schId);
+              const apps = getScholarshipApplications().filter(
+                (a) => a.scholarshipId === schId,
+              );
+              const headers = [
+                "Student",
+                "Student Number",
+                "Submitted",
+                "Score",
+                "Status",
+                "Awarded Amount",
+                "Total Disbursed",
+              ];
+              const rows = apps.map((a) => [
+                a.studentName,
+                a.studentNumber || "",
+                (a.submittedAt || "").slice(0, 10),
+                a.score != null ? a.score : "",
+                a.status || "",
+                a.awardedAmount != null ? a.awardedAmount : "",
+                arr(a.disbursements).reduce(
+                  (s, d) => s + (Number(d.amount) || 0),
+                  0,
+                ),
+              ]);
+              downloadCSV(
+                `scholarship-${(sch ? sch.name : schId).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`,
+                headers,
+                rows,
+              );
+            }),
+        );
+      }
+
+      /* ---------------- Scholarships (Student-facing) ----------------
+                 Students browse open scholarship programmes, fill in each one's
+                 custom application form, and track the status/outcome (including
+                 any logged disbursements) of scholarships they've already applied
+                 to. Applying more than once to the same programme is blocked. */
+      let scholarshipStudentState = { applyingId: null };
+      function render_student_scholarships(main, user) {
+        const scholarships = getScholarships().filter(
+          (s) => s.status !== "closed" || true,
+        );
+        const myApps = getScholarshipApplications().filter(
+          (a) => a.studentId === user.id,
+        );
+        const appliedIds = new Set(myApps.map((a) => a.scholarshipId));
+        const applying = scholarshipStudentState.applyingId
+          ? scholarships.find(
+              (s) => s.id === scholarshipStudentState.applyingId,
+            )
+          : null;
+
+        main.innerHTML = `<div class="eyebrow">Student Affairs</div><h2>Scholarships</h2>
+          <h3 style="font-size:16px;">Open programmes</h3>
+          ${
+            scholarships.filter((s) => s.status !== "closed").length === 0
+              ? '<div class="empty">No scholarship programmes are open right now.</div>'
+              : scholarships
+                  .filter((s) => s.status !== "closed")
+                  .map((s) => {
+                    const already = appliedIds.has(s.id);
+                    return `<div class="panel" style="margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; align-items:center;">
+                  <div>
+                    <strong>${escapeHtml(s.name)}</strong>
+                    <div class="muted" style="font-size:12.5px;">${s.amount ? Number(s.amount).toLocaleString() + " award" : ""} ${s.deadline ? " · Deadline: " + s.deadline : ""}</div>
+                  </div>
+                  ${
+                    already
+                      ? '<span class="tag good">Applied</span>'
+                      : `<button class="btn small" data-sch-apply="${s.id}">${applying && applying.id === s.id ? "Cancel" : "Apply"}</button>`
+                  }
+                </div>
+                ${s.description ? `<p class="muted" style="font-size:12.5px; margin-top:6px;">${escapeHtml(s.description)}</p>` : ""}
+                ${s.criteria ? `<p style="font-size:12.5px; margin-top:4px;"><strong>Eligibility:</strong> ${escapeHtml(s.criteria)}</p>` : ""}
+                ${
+                  applying && applying.id === s.id && !already
+                    ? `<div style="margin-top:12px; border-top:1px solid var(--rule); padding-top:12px;">
+                    ${arr(s.fields)
+                      .map(
+                        (f) => `<div style="margin-top:8px;">
+                        <label>${escapeHtml(f.label)}</label>
+                        ${
+                          f.type === "textarea"
+                            ? `<textarea rows="3" data-sch-field="${f.id}"></textarea>`
+                            : f.type === "select"
+                              ? `<select class="field" data-sch-field="${f.id}"><option value="">Select…</option>${f.options.map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("")}</select>`
+                              : `<input type="${f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}" class="field" data-sch-field="${f.id}">`
+                        }
+                      </div>`,
+                      )
+                      .join("")}
+                    <button class="btn" id="schSubmitApp" style="margin-top:12px;" data-sch-submit-for="${s.id}">Submit application</button>
+                  </div>`
+                    : ""
+                }
+              </div>`;
+                  })
+                  .join("")
+          }
+          <h3 style="font-size:16px; margin-top:24px;">Your applications</h3>
+          ${
+            myApps.length === 0
+              ? '<div class="empty">You haven\u2019t applied to any scholarships yet.</div>'
+              : `<div class="panel"><table><thead><tr><th>Scholarship</th><th>Submitted</th><th>Status</th><th>Awarded</th><th>Disbursed so far</th></tr></thead><tbody>
+            ${myApps
+              .map((a) => {
+                const sch = getScholarships().find(
+                  (s) => s.id === a.scholarshipId,
+                );
+                const disbursed = arr(a.disbursements).reduce(
+                  (s2, d) => s2 + (Number(d.amount) || 0),
+                  0,
+                );
+                return `<tr><td>${escapeHtml(sch ? sch.name : "(removed programme)")}</td><td>${(a.submittedAt || "").slice(0, 10)}</td><td><span class="tag ${scholarshipStatusClass(a.status)}">${escapeHtml(a.status || "Submitted")}</span></td><td>${a.awardedAmount != null ? Number(a.awardedAmount).toLocaleString() : "\u2014"}</td><td>${disbursed ? disbursed.toLocaleString() : "\u2014"}</td></tr>`;
+              })
+              .join("")}
+            </tbody></table></div>`
+          }`;
+
+        main.querySelectorAll("[data-sch-apply]").forEach(
+          (b) =>
+            (b.onclick = () => {
+              const id = b.dataset.schApply;
+              scholarshipStudentState.applyingId =
+                scholarshipStudentState.applyingId === id ? null : id;
+              render();
+            }),
+        );
+        const submitBtn = main.querySelector("[data-sch-submit-for]");
+        if (submitBtn)
+          submitBtn.onclick = () => {
+            const schId = submitBtn.dataset.schSubmitFor;
+            const sch = getScholarships().find((s) => s.id === schId);
+            if (!sch) return;
+            const answers = {};
+            let missing = false;
+            arr(sch.fields).forEach((f) => {
+              const el = main.querySelector(`[data-sch-field="${f.id}"]`);
+              const val = el ? el.value.trim() : "";
+              if (f.required && !val) missing = true;
+              answers[f.id] = val;
+            });
+            if (missing) {
+              alert("Please complete all fields before submitting.");
+              return;
+            }
+            const all = getScholarshipApplications();
+            all.push({
+              id: uid("schapp"),
+              scholarshipId: schId,
+              studentId: user.id,
+              studentName: user.name,
+              studentNumber: user.studentNumber || "",
+              programmeId: user.programmeId || "",
+              answers,
+              submittedAt: new Date().toISOString(),
+              status: "Submitted",
+              score: null,
+              awardedAmount: null,
+              disbursements: [],
+            });
+            saveScholarshipApplications(all);
+            scholarshipStudentState.applyingId = null;
+            render();
+          };
       }
 
       /* ---------------- Role Duties (help/guide page, every role) ---------------- */
@@ -28373,7 +31363,7 @@
           <div class="eyebrow">System Owner</div>
           <h2>All Schools</h2>
       ${justRegisteredPanel}
-          <div class="stat-row">
+          <div class="stat-row slide-row">
             <div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Schools</div></div>
             <div class="stat-card"><div class="num">${active}</div><div class="lbl">Active</div></div>
             <div class="stat-card"><div class="num">${pending}</div><div class="lbl">Pending</div></div>
